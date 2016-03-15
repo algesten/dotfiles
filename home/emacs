@@ -1,14 +1,28 @@
 
-; list the packages you want
-(setq package-list '(coffee-mode dash editorconfig es-mode git-gutter grandshell-theme jade-mode js2-mode less-css-mode markdown-mode stylus-mode sws-mode yaml-mode))
 
-; list the repositories containing them
-(setq package-archives '(("melpa" . "http://melpa.milkbox.net/packages/")
-                         ("gnu" . "http://elpa.gnu.org/packages/")
-                         ("marmalade" . "http://marmalade-repo.org/packages/")))
-
-; activate all the packages (in particular autoloads)
+(require 'cl)
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/"))
+(setq package-enable-at-startup nil)
 (package-initialize)
+
+; list of packages
+(setq package-list
+      '(
+        coffee-mode
+        dash
+        editorconfig
+        es-mode
+        git-gutter
+        grandshell-theme
+        jade-mode
+        js2-mode
+        less-css-mode
+        markdown-mode
+        stylus-mode
+        sws-mode
+        yaml-mode
+        ))
 
 ; fetch the list of packages available 
 (unless package-archive-contents
