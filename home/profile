@@ -14,16 +14,16 @@ PATH="/usr/local/bin:/usr/local/sbin:./node_modules/.bin:/usr/sbin:/sbin:$PATH"
 # Load NVM into a shell session *as a function*
 [[ -s "$HOME/.nvm/nvm.sh" ]] && source "$HOME/.nvm/nvm.sh"
 
-alias ls="ls -FG"
-
 if [ -x /usr/local/bin/brew ]; then
     if [ -f $(brew --prefix)/etc/bash_completion ]; then
         . $(brew --prefix)/etc/bash_completion
     fi
     export EDITOR="emacsclient"
     alias emacs="emacsclient -n"
+    alias ls="ls -FG"
 else
     export EDITOR="emacs"
+    alias ls="ls -F --color"
 fi
 
 # Restore git add -A as it used to be.
