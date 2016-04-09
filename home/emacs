@@ -69,6 +69,9 @@
 ;; keep buffers in sync with disk
 (global-auto-revert-mode t)
 
+(require 'editorconfig)
+(editorconfig-mode 1)
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
