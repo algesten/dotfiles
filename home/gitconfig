@@ -11,6 +11,7 @@
 [user]
 	name = Martin Algesten
 	email = martin@algesten.se
+	signingkey = AA1ABC08
 [push]
 	default = simple
 	followTags = true
