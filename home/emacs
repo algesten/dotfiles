@@ -90,6 +90,7 @@
  '(indent-tabs-mode nil)
  '(js-indent-level 2)
  '(js2-basic-offset 2)
+ '(js2-strict-missing-semi-warning nil)
  '(make-backup-files nil)
  '(markdown-command "/usr/local/bin/markdown")
  '(markdown-css-path "http://kevinburke.bitbucket.org/markdowncss/markdown.css")
