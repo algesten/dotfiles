@@ -17,6 +17,7 @@
         grandshell-theme
         jade-mode
         js2-mode
+        jsx-mode
         less-css-mode
         markdown-mode
         stylus-mode
@@ -121,6 +122,7 @@
 
 
 (add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
+(add-to-list 'auto-mode-alist '("\\.jsx\\'" . jsx-mode))
 
 ;; not working
 (setq sws-tab-width 4)
