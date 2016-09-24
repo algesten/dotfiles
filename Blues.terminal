@@ -700,6 +700,8 @@
 	DYENhQ2MDZUNmg2nDaoNtw28DcQNxw3ZDdwN4QAAAAAAAAIBAAAAAAAAAC8AAAAAAAAA
 	AAAAAAAAAA3j
 	</data>
+	<key>UseBoldFonts</key>
+	<false/>
 	<key>UseBrightBold</key>
 	<false/>
 	<key>VisualBell</key>
@@ -707,7 +709,7 @@
 	<key>columnCount</key>
 	<integer>120</integer>
 	<key>name</key>
-	<string>Orange</string>
+	<string>Blues</string>
 	<key>rowCount</key>
 	<integer>35</integer>
 	<key>shellExitAction</key>
