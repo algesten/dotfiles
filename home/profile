@@ -33,7 +33,3 @@ fi
 
 # Restore git add -A as it used to be.
 git() { if [[ $@ == "add -A" ]]; then command git add -A :/; else command git "$@"; fi; }
-
-if [ -x `which direnv` ]; then
-   eval "$(direnv hook bash)"
-fi
