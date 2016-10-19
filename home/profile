@@ -17,9 +17,9 @@ export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 # Load NVM into a shell session *as a function*
 [[ -s "$HOME/.nvm/nvm.sh" ]] && source "$HOME/.nvm/nvm.sh"
 
-PATH="/usr/local/bin:/usr/local/sbin:./node_modules/.bin:/usr/sbin:/sbin:$PATH"
+PATH="/usr/local/bin:/usr/local/sbin:./node_modules/.bin:/usr/sbin:/sbin:/Users/martin/.brew/bin/:$PATH"
 
-if [ -x /usr/local/bin/brew ]; then
+if [ -x "`which brew`" ]; then
     if [ -f $(brew --prefix)/etc/bash_completion ]; then
         . $(brew --prefix)/etc/bash_completion
     fi
