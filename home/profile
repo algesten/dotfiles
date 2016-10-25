@@ -15,7 +15,11 @@ export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 [[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"
 
 # Load NVM into a shell session *as a function*
-[[ -s "$HOME/.nvm/nvm.sh" ]] && source "$HOME/.nvm/nvm.sh"
+if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+    source "$HOME/.nvm/nvm.sh"
+    # this is a symbolic link in a fixed position for the current nvm version.
+    rm -f ~/.nvm/bin && ln -s "$(dirname "$(nvm which "$(nvm current)")")" ~/.nvm/bin
+fi
 
 PATH="/usr/local/bin:/usr/local/sbin:./node_modules/.bin:/usr/sbin:/sbin:/Users/martin/.brew/bin/:$PATH"
 
