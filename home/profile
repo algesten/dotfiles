@@ -4,8 +4,6 @@ if [ `uname` == Linux ]; then
    export LC_ALL=en_US.UTF-8
 fi
 
-PS1="\h$ "
-
 export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 
 # Load secret environment keys
@@ -37,3 +35,17 @@ fi
 
 # Restore git add -A as it used to be.
 git() { if [[ $@ == "add -A" ]]; then command git add -A :/; else command git "$@"; fi; }
+
+
+# set a fancy prompt (non-color, unless we know we "want" color)
+#PS1="\h$ "
+case "$TERM" in
+    xterm-color|*-256color) color_prompt=yes;;
+esac
+if [ "$color_prompt" = yes ]; then
+    PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+else
+    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
+fi
+unset color_prompt
+
