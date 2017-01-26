@@ -8,6 +8,7 @@
 	nun = update-index --no-assume-unchanged
 [core]
 	pager = cat
+	filemode = true
 [user]
 	name = Martin Algesten
 	email = martin@algesten.se
