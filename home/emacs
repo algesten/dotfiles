@@ -20,7 +20,7 @@
         grandshell-theme
         jade-mode
         js2-mode
-        jsx-mode
+        rjsx-mode
         less-css-mode
         markdown-mode
         rust-mode
@@ -99,13 +99,14 @@
  '(js-indent-level 2)
  '(js2-basic-offset 2)
  '(js2-strict-missing-semi-warning nil)
+ '(js2-strict-trailing-comma-warning nil)
  '(make-backup-files nil)
  '(markdown-command "/usr/local/bin/markdown")
  '(markdown-css-path "http://kevinburke.bitbucket.org/markdowncss/markdown.css")
  '(markdown-xhtml-header-content "")
  '(package-selected-packages
    (quote
-    (flymake-cursor exec-path-from-shell flymake-coffee toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode jsx-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig coffee-mode)))
+    (rjsx-mode flymake-cursor exec-path-from-shell flymake-coffee toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig coffee-mode)))
  '(sass-indent-offset 4)
  '(scalable-fonts-allowed nil)
  '(send-mail-function (quote mailclient-send-it))
@@ -122,6 +123,7 @@
 (add-hook 'js2-mode-hook (lambda () (add-to-list 'write-file-functions 'delete-trailing-whitespace nil)))
 (add-hook 'less-css-mode-hook (lambda () (add-to-list 'write-file-functions 'delete-trailing-whitespace nil)))
 (add-hook 'jade-mode-hook (lambda () (add-to-list 'write-file-functions 'delete-trailing-whitespace nil)))
+(add-hook 'rust-mode-hook (lambda () (add-to-list 'write-file-functions 'delete-trailing-whitespace nil)))
 
 ;; on save remove tabs
 (setq martin/untabify-modes '(coffee-mode js2-mode less-css-mode))
@@ -132,7 +134,9 @@
 
 
 (add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
-(add-to-list 'auto-mode-alist '("\\.jsx\\'" . jsx-mode))
+(add-to-list 'auto-mode-alist '("\\.jsx\\'" . rjsx-mode))
+(add-to-list 'auto-mode-alist '("components\\/.*\\.js\\'" . rjsx-mode))
+(add-to-list 'auto-mode-alist '("comp\\/.*\\.js\\'" . rjsx-mode))
 
 ;; not working
 (setq sws-tab-width 4)
