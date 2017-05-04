@@ -1,7 +1,16 @@
 
-if [ `uname` == Linux ]; then
-   export LC_CTYPE=en_US.UTF-8
-   export LC_ALL=en_US.UTF-8
+# Encoding that is rather generic and should work
+# on all my installations.
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+# TMUX
+if type tmux >/dev/null 2>&1; then
+    # if not inside a tmux session, and if no session is started, start a new session
+    if [ -z "$TMUX" -a `uname` == Darwin ]; then
+        # attach to "martin" if there
+        exec tmux -f  ~/.tmux-osx.conf new-session -A -s martin
+    fi
 fi
 
 export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
@@ -21,7 +30,7 @@ fi
 
 PATH="$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:./node_modules/.bin:/usr/sbin:/sbin:$HOME/.cargo/bin:$HOME/.brew/bin/:$PATH"
 
-if [ -x "`which brew`" ]; then
+if type brew >/dev/null 2>&1; then
     if [ -f $(brew --prefix)/etc/bash_completion ]; then
         . $(brew --prefix)/etc/bash_completion
     fi
@@ -40,7 +49,7 @@ git() { if [[ $@ == "add -A" ]]; then command git add -A :/; else command git "$
 # set a fancy prompt (non-color, unless we know we "want" color)
 #PS1="\h$ "
 case "$TERM" in
-    xterm-color|*-256color) color_prompt=yes;;
+    xterm-color|*-256color|screen) color_prompt=yes;;
 esac
 if [ "$color_prompt" = yes ]; then
     PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
@@ -48,4 +57,3 @@ else
     PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
 unset color_prompt
-
