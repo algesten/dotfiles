@@ -13,7 +13,6 @@
         dockerfile-mode
         editorconfig
         es-mode
-        exec-path-from-shell
         flymake-coffee
         flymake-cursor
         git-gutter
@@ -68,11 +67,6 @@
     (progn
       (tool-bar-mode -1)
       (scroll-bar-mode -1)))
-(add-to-list 'exec-path "/usr/local/bin")
-(add-to-list 'exec-path "/usr/local/share/npm/bin")
-
-(when (memq window-system '(mac ns))
-  (exec-path-from-shell-initialize))
 
 ;; keep buffers in sync with disk
 (global-auto-revert-mode t)
@@ -106,7 +100,7 @@
  '(markdown-xhtml-header-content "")
  '(package-selected-packages
    (quote
-    (rjsx-mode flymake-cursor exec-path-from-shell flymake-coffee toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig coffee-mode)))
+    (swift-mode rjsx-mode flymake-cursor flymake-coffee toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig coffee-mode)))
  '(sass-indent-offset 4)
  '(scalable-fonts-allowed nil)
  '(send-mail-function (quote mailclient-send-it))
