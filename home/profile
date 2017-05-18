@@ -18,7 +18,7 @@ export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 # Load secret environment keys
 [[ -s "$HOME/.envkeys" ]] && source "$HOME/.envkeys"
 
-# Load RVM into a shell session *as a function*
+# Load RVM into a shell session *as a unction*
 [[ -s "$HOME/.rvm/scripts/rvm" ]] && source "$HOME/.rvm/scripts/rvm"
 
 # Load NVM into a shell session *as a function*
