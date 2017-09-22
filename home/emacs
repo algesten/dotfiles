@@ -91,7 +91,6 @@
  '(global-whitespace-mode t)
  '(indent-tabs-mode nil)
  '(js-indent-level 2)
- '(js2-basic-offset 2)
  '(js2-strict-missing-semi-warning nil)
  '(js2-strict-trailing-comma-warning nil)
  '(make-backup-files nil)
@@ -105,8 +104,6 @@
  '(scalable-fonts-allowed nil)
  '(send-mail-function (quote mailclient-send-it))
  '(tab-width 4)
- '(whitespace-empty-at-bob-regexp "^\\(\\(osdfkjqwelksdfgb
-\\)+\\)")
  '(whitespace-line-column -1)
  '(whitespace-style
    (quote
