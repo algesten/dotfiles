@@ -51,3 +51,7 @@ else
     PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
 fi
 unset color_prompt
+
+export PATH="$HOME/.cargo/bin:$PATH"
+
+test `uname` == 'Darwin' && ssh-add -A > /dev/null 2>&1
