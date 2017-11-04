@@ -4,15 +4,6 @@
 export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-# TMUX
-if type tmux >/dev/null 2>&1; then
-    # if not inside a tmux session, and if no session is started, start a new session
-    if [ -z "$TMUX" -a `uname` == Darwin ]; then
-        # attach to "martin" if there
-        exec tmux -2 -f  ~/.tmux-osx.conf new-session -A -s martin
-    fi
-fi
-
 export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 
 # Load secret environment keys
