@@ -14,9 +14,10 @@ export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
 
 # Load NVM into a shell session *as a function*
 if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-    source "$HOME/.nvm/nvm.sh"
+    # first use of nvm installs nvm.
+    alias nvm="unalias nvm && source ~/.nvm/nvm.sh && nvm"
     # this is a symbolic link in a fixed position for the current nvm version.
-    rm -f ~/.nvm/bin && ln -s "$(dirname "$(nvm which "$(nvm current)")")" ~/.nvm/bin
+    # rm -f ~/.nvm/bin && ln -s "$(dirname "$(nvm which "$(nvm current)")")" ~/.nvm/bin
 fi
 
 PATH="$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.cargo/bin:$HOME/.brew/bin/:$HOME/.cargo/bin:$PATH"
