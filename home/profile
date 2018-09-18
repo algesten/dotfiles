@@ -14,6 +14,8 @@ if [[ -s "$HOME/.rvm/scripts/rvm" ]]; then
     alias rvm="unalias rvm && source ~/.rvm/scripts/rvm && rvm"
 fi
 
+alias emacs="emacsclient -n"
+
 unalias_nvm () {
   unalias nvm
   unalias npm
@@ -38,7 +40,6 @@ if type brew >/dev/null 2>&1; then
         . $(brew --prefix)/etc/bash_completion
     fi
     export EDITOR="emacsclient"
-    alias emacs="emacsclient -n"
     alias ls="ls -FG"
 else
     export EDITOR="emacs"
@@ -66,4 +67,4 @@ export PATH="$HOME/.cargo/bin:$PATH"
 test `uname` == 'Darwin' && ssh-add -A > /dev/null 2>&1
 
 # Local amends
-[[ -s "$HOME/.local" ]] && source "$HOME/.local"
+[[ -s "$HOME/.localx" ]] && source "$HOME/.localx"
