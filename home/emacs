@@ -8,11 +8,14 @@
 (setq package-list
       '(
         dash
+        diminish
         dockerfile-mode
         editorconfig
         es-mode
         exec-path-from-shell
+        flycheck
         flycheck-color-mode-line
+        flycheck-rust
         git-gutter
         grandshell-theme
         jade-mode
@@ -22,6 +25,7 @@
         lsp-rust
         lsp-ui
         markdown-mode
+        powerline
         rjsx-mode
         rust-mode
         stylus-mode
@@ -106,7 +110,7 @@
  '(markdown-xhtml-header-content "")
  '(package-selected-packages
    (quote
-    (flycheck-rust flycheck-color-mode-line lsp-ui exec-path-from-shell flycheck lsp-mode lsp-rust json-reformat kotlin-mode typescript-mode ansible-vault swift-mode rjsx-mode toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig)))
+    (diminish flycheck-rust flycheck-color-mode-line lsp-ui exec-path-from-shell flycheck lsp-mode lsp-rust json-reformat kotlin-mode typescript-mode ansible-vault swift-mode rjsx-mode toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig)))
  '(powerline-display-buffer-size nil)
  '(sass-indent-offset 4)
  '(scalable-fonts-allowed nil)
@@ -206,3 +210,7 @@
 
 (require 'powerline)
 (powerline-default-theme)
+
+(require 'diminish)
+(diminish 'editorconfig-mode)
+(diminish 'abbrev-mode "Abbrv")
