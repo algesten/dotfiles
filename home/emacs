@@ -21,15 +21,13 @@
         jade-mode
         js2-mode
         less-css-mode
-        lsp-mode
-        lsp-rust
-        lsp-ui
         markdown-mode
         powerline
         rjsx-mode
         rust-mode
         stylus-mode
         sws-mode
+        typescript-mode 
         yaml-mode
         ))
 
@@ -98,19 +96,13 @@
  '(js-indent-level 2)
  '(js2-strict-missing-semi-warning nil)
  '(js2-strict-trailing-comma-warning nil)
- '(lsp-enable-eldoc nil)
- '(lsp-ui-doc-enable nil)
- '(lsp-ui-imenu-enable nil)
- '(lsp-ui-peek-enable nil)
- '(lsp-ui-sideline-show-hover nil)
- '(lsp-ui-sideline-show-symbol nil)
  '(make-backup-files nil)
  '(markdown-command "/usr/local/bin/markdown")
  '(markdown-css-path "http://kevinburke.bitbucket.org/markdowncss/markdown.css")
  '(markdown-xhtml-header-content "")
  '(package-selected-packages
    (quote
-    (diminish flycheck-rust flycheck-color-mode-line lsp-ui exec-path-from-shell flycheck lsp-mode lsp-rust json-reformat kotlin-mode typescript-mode ansible-vault swift-mode rjsx-mode toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig)))
+    (typescript-mode diminish flycheck-rust flycheck-color-mode-line exec-path-from-shell flycheck json-reformat kotlin-mode typescript-mode ansible-vault swift-mode rjsx-mode toml-mode rust-mode dockerfile-mode yaml-mode stylus-mode markdown-mode less-css-mode json-snatcher js2-mode jade-mode grandshell-theme git-gutter es-mode editorconfig-core editorconfig)))
  '(powerline-display-buffer-size nil)
  '(sass-indent-offset 4)
  '(scalable-fonts-allowed nil)
@@ -180,17 +172,13 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(default ((t (:weight light :family "Source Code Pro")))))
+ '(default ((t (:weight extra-light :family "Source Code Pro")))))
 
 (defun sudo-find-file (file-name)
   "Like find file, but opens the file as root."
   (interactive "FSudo Find File: ")
   (let ((tramp-file-name (concat "/sudo::" (expand-file-name file-name))))
     (find-file tramp-file-name)))
-
-(with-eval-after-load 'lsp-mode
-  (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
-  (require 'lsp-rust))
 
 (add-hook 'after-init-hook #'global-flycheck-mode)
 
@@ -202,11 +190,7 @@
 (with-eval-after-load 'rust-mode
   (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
 
-(add-hook 'rust-mode-hook #'lsp-rust-enable)
 (add-hook 'rust-mode-hook #'flycheck-mode)
-
-(require 'lsp-ui)
-(add-hook 'lsp-mode-hook 'lsp-ui-mode)
 
 (require 'powerline)
 (powerline-default-theme)
