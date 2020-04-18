@@ -9,6 +9,7 @@
       '(
 	diminish
         editorconfig
+        exec-path-from-shell
         grandshell-theme
         ))
 
@@ -16,10 +17,14 @@
 (unless package-archive-contents
   (package-refresh-contents))
 
-; install the missing packages
+;; install the missing packages
 (dolist (package package-list)
   (unless (package-installed-p package)
     (package-install package)))
+
+;; emacs is not getting the PATH variables from bash_profile.
+;; this fixes it by shelling out and setting the path.
+(exec-path-from-shell-initialize)
 
 (setq inhibit-startup-message t)
 (setq inhibit-startup-echo-area-message t)
@@ -29,6 +34,8 @@
 (show-paren-mode t)
 (setq initial-scratch-message "")
 (setq vc-follow-symlinks t) ;; auto follow symlinks
+(setq-default indent-tabs-mode nil)
+(setq-default show-trailing-whitespace t)
 
 ;; Remove butt ugly toolbar
 (if (display-graphic-p)
