@@ -28,6 +28,7 @@
 (setq next-line-add-newlines nil) ;; Stop at end of file
 (show-paren-mode t)
 (setq initial-scratch-message "")
+(setq vc-follow-symlinks t) ;; auto follow symlinks
 
 ;; Remove butt ugly toolbar
 (if (display-graphic-p)
