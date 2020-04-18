@@ -1,4 +1,7 @@
 
+# Apple annoying text
+export BASH_SILENCE_DEPRECATION_WARNING=1
+
 # Encoding that is rather generic and should work
 # on all my installations.
 export LC_CTYPE=en_US.UTF-8
