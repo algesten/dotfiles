@@ -10,7 +10,6 @@
 	diminish
         editorconfig
         grandshell-theme
-	powerline
         ))
 
 ;; fetch the list of packages available
@@ -53,7 +52,7 @@
  ;; If there is more than one, they won't work right.
  '(auto-save-default nil)
  '(create-lockfiles nil)
- '(powerline-display-buffer-size nil))
+ '(package-selected-packages (quote (grandshell-theme editorconfig diminish))))
 
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
@@ -90,9 +89,6 @@
 
 ;; no friggin sound
 (setq ring-bell-function #'ignore)
-
-(require 'powerline)
-(powerline-default-theme)
 
 (require 'diminish)
 (diminish 'editorconfig-mode)
