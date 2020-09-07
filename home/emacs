@@ -36,6 +36,8 @@
 (setq vc-follow-symlinks t) ;; auto follow symlinks
 (setq-default indent-tabs-mode nil)
 (setq-default show-trailing-whitespace t)
+(global-set-key (kbd "s-+") 'text-scale-increase)
+(global-set-key (kbd "s--") 'text-scale-decrease)
 
 ;; Remove butt ugly toolbar
 (if (display-graphic-p)
@@ -60,7 +62,9 @@
  ;; If there is more than one, they won't work right.
  '(auto-save-default nil)
  '(create-lockfiles nil)
- '(package-selected-packages (quote (grandshell-theme editorconfig diminish))))
+ '(package-selected-packages
+   (quote
+    (lsp-mode rust-mode markdown-mode grandshell-theme editorconfig diminish))))
 
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
@@ -98,5 +102,9 @@
 ;; no friggin sound
 (setq ring-bell-function #'ignore)
 
+(setq lsp-keymap-prefix "C-c l")
+(add-hook 'rust-mode-hook #'lsp-deferred)
+
 (require 'diminish)
 (diminish 'editorconfig-mode)
+
