@@ -40,7 +40,7 @@ if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
     # rm -f ~/.nvm/bin && ln -s "$(dirname "$(nvm which "$(nvm current)")")" ~/.nvm/bin
 fi
 
-PATH="$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.cargo/bin:$HOME/.brew/bin/:$HOME/.cargo/bin:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
+PATH="/opt/homebrew/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.cargo/bin:$HOME/.brew/bin/:$HOME/.cargo/bin:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
 
 if type brew >/dev/null 2>&1; then
     if [ -f $(brew --prefix)/etc/bash_completion ]; then
