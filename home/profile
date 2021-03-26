@@ -42,14 +42,14 @@ fi
 
 PATH="/opt/homebrew/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.cargo/bin:$HOME/.brew/bin/:$HOME/.cargo/bin:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
 
+export EDITOR=vi
+
 if type brew >/dev/null 2>&1; then
     if [ -f $(brew --prefix)/etc/bash_completion ]; then
         . $(brew --prefix)/etc/bash_completion
     fi
-    export EDITOR="emacsclient"
     alias ls="ls -FG"
 else
-    export EDITOR="emacs"
     alias ls="ls -F --color"
 fi
 
