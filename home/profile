@@ -18,6 +18,7 @@ if [[ -s "$HOME/.rvm/scripts/rvm" ]]; then
 fi
 
 alias emacs="emacsclient -n"
+alias gitprune="git pull -p && git for-each-ref --format='%(if:equals=[gone])%(upstream:track)%(then)%(refname:short)%(end)' | xargs git branch -D"
 
 # Dont auto-update brew on brew install
 export HOMEBREW_NO_AUTO_UPDATE=1
