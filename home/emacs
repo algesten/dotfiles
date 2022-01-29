@@ -1,8 +1,10 @@
 (require 'cl)
 (require 'package)
-(add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/"))
-(setq package-enable-at-startup nil)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+;; (setq package-enable-at-startup nil)
 (package-initialize)
+
+(package-refresh-contents)
 
 ; list of packages to install
 (setq package-list
@@ -13,9 +15,6 @@
         grandshell-theme
         ))
 
-;; fetch the list of packages available
-(unless package-archive-contents
-  (package-refresh-contents))
 
 ;; install the missing packages
 (dolist (package package-list)
