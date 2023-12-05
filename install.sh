@@ -25,3 +25,9 @@ for location in $(find home -name '*' -type f); do
 done
 
 link "$HOME/Docs/Settings/envkeys" "$HOME/.envkeys"
+
+mkdir -p ~/.config/nvim/lua
+
+for location in $(find config/nvim -type f); do
+  link $dotfiles/$location $HOME/.${location}
+done

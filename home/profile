@@ -46,6 +46,8 @@ fi
 
 PATH="/opt/homebrew/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.brew/bin/:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
 
+which -s nvim && alias vi=nvim
+
 export EDITOR=vi
 
 if type brew >/dev/null 2>&1; then
@@ -77,3 +79,6 @@ test `uname` == 'Darwin' && ssh-add -A > /dev/null 2>&1
 
 # Local amends
 [[ -s "$HOME/.localx" ]] && source "$HOME/.localx"
+
+  export DENO_INSTALL="/Users/martin/.deno"
+  export PATH="$DENO_INSTALL/bin:$PATH"
