@@ -6,6 +6,13 @@ vim.opt.tabstop = 4                 -- number of visual spaces per TAB
 vim.opt.softtabstop = 4             -- number of spacesin tab when editing
 vim.opt.shiftwidth = 4              -- insert 4 spaces on a tab
 vim.opt.expandtab = true            -- tabs are spaces, mainly because of python
+--vim.opt.termguicolors = true        -- lots and lots of terminal colors
+vim.opt.syntax = 'on'
+vim.opt.hlsearch = true
+vim.opt.incsearch = true
+vim.opt.scrolloff = 8
+
+vim.opt.colorcolumn = '120'
 
 -- UI config
 vim.opt.number = true               -- show absolute number

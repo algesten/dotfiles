@@ -4,6 +4,6 @@ local opts = {
     silent = true,       -- do not show message
 }
 
-vim.keymap.set('n', '<C-a>', '<Home>', opts)
-vim.keymap.set('n', '<C-e>', '<End>', opts)
+vim.keymap.set({'n', 'v', 'i'}, '<C-a>', '<Home>', opts)
+vim.keymap.set({'n', 'v', 'i'}, '<C-e>', '<End>', opts)
 
