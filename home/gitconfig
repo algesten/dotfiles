@@ -6,13 +6,13 @@
 	ls = diff-tree --no-commit-id --name-only -r
 	un = update-index --assume-unchanged
 	nun = update-index --no-assume-unchanged
-[core]
-	pager = cat
-	filemode = true
 [user]
 	name = Martin Algesten
 	email = martin@algesten.se
-	signingkey = AA1ABC08
+[core]
+	pager = cat
+	filemode = true
+        sshCommand = ssh -i ~/.ssh/id_ecdsa
 [push]
 	default = simple
 	followTags = true
@@ -35,3 +35,6 @@
 	helper = osxkeychain
 [init]
 	defaultBranch = main
+
+[includeIf "gitdir:/Users/martin/dev/lk/**"]
+        path = /Users/martin/dev/lk/gitconfig
