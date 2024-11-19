@@ -26,8 +26,14 @@ done
 
 link "$HOME/Docs/Settings/envkeys" "$HOME/.envkeys"
 
-mkdir -p ~/.config/nvim/lua
+mkdir -p $HOME/.config/nvim/lua
 
 for location in $(find config/nvim -type f); do
   link $dotfiles/$location $HOME/.${location}
 done
+
+
+echo "Overwriting config/zed to $HOME/.config/zed"
+rm -rf $HOME/.config/_zed
+mv $HOME/.config/zed $HOME/.config/_zed >/dev/null 2>&1
+cp -R config/zed $HOME/.config/
