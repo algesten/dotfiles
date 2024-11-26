@@ -24,6 +24,8 @@
       "enabled": false
     }
   },
+  "use_autoclose": false,
+  "max_tabs": 4,
   "lsp": {
     "rust-analyzer": {
       "binary": {
