@@ -12,7 +12,6 @@
 [core]
 	pager = cat
 	filemode = true
-        sshCommand = ssh -i ~/.ssh/id_ecdsa
 [push]
 	default = simple
 	followTags = true
