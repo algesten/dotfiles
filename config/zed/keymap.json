@@ -22,7 +22,12 @@
       "cmd-[": "pane::GoBack",
       "cmd-]": "pane::GoForward",
       "ctrl-pageup": null,
-      "ctrl-pagedown": null
+      "ctrl-pagedown": null,
+      "ctrl-a": [
+        "editor::MoveToBeginningOfLine",
+        { "stop_at_soft_wraps": false }
+      ],
+      "ctrl-e": ["editor::MoveToEndOfLine", { "stop_at_soft_wraps": false }]
     }
   },
   {
