@@ -7,13 +7,6 @@
 // custom settings, run the `zed: Open Default Settings` command
 // from the command palette
 {
-  "agent": {
-    "default_model": {
-      "provider": "openai",
-      "model": "gpt-5"
-    },
-    "model_parameters": []
-  },
   "base_keymap": "VSCode",
   "preview_tabs": {
     "enabled": false
@@ -28,14 +21,19 @@
   "max_tabs": 8,
   "restore_on_file_reopen": false,
   "buffer_font_weight": 500.0,
-  "buffer_font_fallbacks": ["Menlo", "Monaco", "Courier New"],
+  "buffer_font_fallbacks": [
+    "Menlo",
+    "Monaco",
+    "Courier New",
+    "monospace"
+  ],
   "buffer_font_family": "Source Code Pro",
   "use_auto_surround": false,
   "indent_guides": {
     "enabled": false
   },
   "features": {
-    "edit_prediction_provider": "none"
+    "inline_completion_provider": "none"
   },
   "ui_font_size": 16,
   "buffer_font_size": 14.0,
