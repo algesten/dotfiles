@@ -24,7 +24,10 @@ for location in $(find home -name '*' -type f); do
   link "$dotfiles/$location" "$HOME/.${file}"
 done
 
-link "$HOME/Docs/Settings/envkeys" "$HOME/.envkeys"
+# Link envkeys if it exists (location may vary by machine)
+if [[ -f "$HOME/Docs/Settings/envkeys" ]]; then
+  link "$HOME/Docs/Settings/envkeys" "$HOME/.envkeys"
+fi
 
 mkdir -p $HOME/.config/nvim/lua
 

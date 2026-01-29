@@ -92,7 +92,10 @@
     (interactive)
     (delete-other-windows)
     (close-all-buffers)
-    (ns-do-hide-emacs))
+    ;; ns-do-hide-emacs is macOS-only; on Linux just iconify
+    (if (eq system-type 'darwin)
+        (ns-do-hide-emacs)
+      (iconify-frame)))
 
   (global-set-key "\C-x\C-c" 'martin-kill-hide)
   (server-start))

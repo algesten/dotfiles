@@ -47,9 +47,14 @@ if [[ -s "$HOME/.cargo/env" ]]; then
    . "$HOME/.cargo/env"
 fi
 
-PATH="/opt/homebrew/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/.brew/bin/:/Applications/Emacs.app/Contents/MacOS/bin:$HOME/bin:$PATH"
+PATH="$HOME/.local/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/bin:$PATH"
 
-which -s nvim && alias vi=nvim
+# Add macOS-specific paths
+if [[ "$(uname)" == "Darwin" ]]; then
+    PATH="/opt/homebrew/bin:$HOME/.brew/bin:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
+fi
+
+command -v nvim >/dev/null 2>&1 && alias vi=nvim
 
 export EDITOR="emacsclient"
 
@@ -83,7 +88,13 @@ test `uname` == 'Darwin' && ssh-add -A > /dev/null 2>&1
 # Local amends
 [[ -s "$HOME/.localx" ]] && source "$HOME/.localx"
 
-  export DENO_INSTALL="/Users/martin/.deno"
-  export PATH="$DENO_INSTALL/bin:$PATH"
+# Deno
+if [[ -d "$HOME/.deno" ]]; then
+    export DENO_INSTALL="$HOME/.deno"
+    export PATH="$DENO_INSTALL/bin:$PATH"
+fi
 
-export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:"$(brew --prefix)/lib"
+# macOS dynamic library path (brew)
+if [[ "$(uname)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
+    export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH:+$DYLD_LIBRARY_PATH:}$(brew --prefix)/lib"
+fi

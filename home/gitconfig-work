@@ -1,0 +1,4 @@
+# Work-specific git config
+# Loaded via includeIf for repos in ~/dev/lk/
+[user]
+	email = martin@lookback.io
