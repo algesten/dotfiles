@@ -31,10 +31,19 @@
 	required = true
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
-[credential]
-	helper = osxkeychain
 [init]
 	defaultBranch = main
 
-[includeIf "gitdir:/Users/martin/dev/lk/**"]
-        path = /Users/martin/dev/lk/gitconfig
+# Work config - applies to repos in ~/dev/lk/ on any OS
+[includeIf "gitdir:~/dev/lk/"]
+        path = ~/.gitconfig-work
+
+# macOS-specific settings (credential helper, etc.)
+[includeIf "gitdir:/Users/"]
+        path = ~/.gitconfig-macos
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
