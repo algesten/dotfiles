@@ -47,7 +47,7 @@ if [[ -s "$HOME/.cargo/env" ]]; then
    . "$HOME/.cargo/env"
 fi
 
-PATH="$HOME/.local/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/bin:$PATH"
+PATH="$HOME/.local/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/bin:$HOME/.local/bin:$PATH"
 
 # Add macOS-specific paths
 if [[ "$(uname)" == "Darwin" ]]; then

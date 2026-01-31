@@ -31,10 +31,6 @@ fi
 
 mkdir -p $HOME/.config/nvim/lua
 
-for location in $(find config/nvim -type f); do
-  link $dotfiles/$location $HOME/.${location}
-done
-
 
 echo "Overwriting config/zed to $HOME/.config/zed"
 rm -rf $HOME/.config/_zed
