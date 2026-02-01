@@ -25,7 +25,8 @@
 (exec-path-from-shell-initialize)
 
 (setq inhibit-startup-message t)
-(setq inhibit-startup-echo-area-message t)
+(setq inhibit-startup-echo-area-message "martin")
+(add-hook 'emacs-startup-hook (lambda () (message nil)))
 (setq make-backup-files nil backup-inhibited t) ;; Dont backup files
 (setq require-final-newline t) ;; End file with newline
 (setq next-line-add-newlines nil) ;; Stop at end of file
