@@ -1,10 +1,8 @@
-;; (require 'cl)
+(require 'cl-lib)
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 ;; (setq package-enable-at-startup nil)
 (package-initialize)
-
-(package-refresh-contents)
 
 ; list of packages to install
 (setq package-list
@@ -15,11 +13,12 @@
         grandshell-theme
         ))
 
-
-;; install the missing packages
-(dolist (package package-list)
-  (unless (package-installed-p package)
-    (package-install package)))
+;; install missing packages, only refreshing the index if needed
+(let ((missing (cl-remove-if #'package-installed-p package-list)))
+  (when missing
+    (package-refresh-contents)
+    (dolist (package missing)
+      (package-install package))))
 
 ;; emacs is not getting the PATH variables from bash_profile.
 ;; this fixes it by shelling out and setting the path.
@@ -54,6 +53,7 @@
 ;; always start grandshell
 (load-theme 'grandshell t)
 
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
@@ -71,15 +71,15 @@
  ;; If there is more than one, they won't work right.
  '(default ((t (:weight extra-light :family "Source Code Pro")))))
 
-(setq initial-frame-alist (quote (
-          (background-color . "black")
-          (foreground-color . "white")
-          (menu-bar-lines . 0)
-          (top . 0)
-          (left . 300)
-          (width . 100)
-          (height . 48)))
-)
+(when (display-graphic-p)
+  (setq initial-frame-alist (quote (
+            (background-color . "black")
+            (foreground-color . "white")
+            (menu-bar-lines . 0)
+            (top . 0)
+            (left . 300)
+            (width . 100)
+            (height . 48)))))
 
 ;; Add special hook that doesn't exit emacs, just hide it.
 ;; Combine this with bash having "alias emacs='emacsclient -n'"
@@ -108,4 +108,15 @@
 
 (require 'diminish)
 (diminish 'editorconfig-mode)
+
+;; In terminal mode, only clear the main editor background so the
+;; terminal's black shows through, but keep grandshell's other faces.
+(unless (display-graphic-p)
+  (add-hook 'window-setup-hook
+            (lambda ()
+              (set-face-background 'default "unspecified-bg")
+              (set-face-background 'fringe "unspecified-bg")
+              (set-face-background 'line-number "unspecified-bg")
+              (modify-frame-parameters (selected-frame)
+                                       '((background-color . "unspecified-bg"))))))
 
