@@ -1,0 +1,3 @@
+
+[[ -f "$HOME/.profile" ]] && . "$HOME/.profile"
+. "$HOME/.cargo/env"

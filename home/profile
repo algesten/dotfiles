@@ -1,3 +1,18 @@
+# Shared shell startup, used on both Linux (Pop!_OS / COSMIC) and macOS.
+# Bash is the interactive shell on both — not zsh, even on macOS.
+# Sourced by ~/.bash_profile (login) and ~/.bashrc (interactive non-login).
+# It is also sourced by /bin/sh (dash) during GDM/COSMIC graphical login,
+# so this file MUST stay POSIX-compatible: no [[ ]], no `==` in test, use `.`
+# instead of `source`. bash-only features (PS1 escapes, etc.) are fine — dash
+# stores them as opaque strings and only bash expands them.
+
+# Idempotent PATH prepend: skip if already present.
+prepend_path() {
+    case ":$PATH:" in
+        *":$1:"*) ;;
+        *) PATH="$1:$PATH" ;;
+    esac
+}
 
 # Apple annoying text
 export BASH_SILENCE_DEPRECATION_WARNING=1
@@ -7,14 +22,14 @@ export BASH_SILENCE_DEPRECATION_WARNING=1
 export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
-export MAVEN_OPTS="-Xmx512m -XX:MaxPermSize=128m -Dfile.encoding=UTF-8"
+export MAVEN_OPTS="-Xmx512m -Dfile.encoding=UTF-8"
 
 # Load secret environment keys
-[[ -s "$HOME/.envkeys" ]] && source "$HOME/.envkeys"
+[ -s "$HOME/.envkeys" ] && . "$HOME/.envkeys"
 
-# Load RVM into a shell session *as a unction*
-if [[ -s "$HOME/.rvm/scripts/rvm" ]]; then
-    alias rvm="unalias rvm && source ~/.rvm/scripts/rvm && rvm"
+# Load RVM into a shell session *as a function*
+if [ -s "$HOME/.rvm/scripts/rvm" ]; then
+    alias rvm="unalias rvm && . ~/.rvm/scripts/rvm && rvm"
 fi
 
 # alias emacs="emacsclient -n"
@@ -30,11 +45,11 @@ unalias_nvm () {
   unalias nvm
   unalias npm
   unalias deploy-to
-  source ~/.nvm/nvm.sh
+  . ~/.nvm/nvm.sh
 }
 
 # Load NVM into a shell session *as a function*
-if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
     # first use of nvm installs nvm.
     alias nvm="unalias_nvm && nvm"
     alias npm="unalias_nvm && npm"
@@ -43,15 +58,23 @@ if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
     # rm -f ~/.nvm/bin && ln -s "$(dirname "$(nvm which "$(nvm current)")")" ~/.nvm/bin
 fi
 
-if [[ -s "$HOME/.cargo/env" ]]; then
+if [ -s "$HOME/.cargo/env" ]; then
    . "$HOME/.cargo/env"
 fi
 
-PATH="$HOME/.local/bin:$HOME/.rvm/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/sbin:$HOME/bin:$HOME/.local/bin:$PATH"
+prepend_path "$HOME/bin"
+prepend_path "/sbin"
+prepend_path "/usr/sbin"
+prepend_path "/usr/local/sbin"
+prepend_path "/usr/local/bin"
+prepend_path "$HOME/.rvm/bin"
+prepend_path "$HOME/.local/bin"
 
 # Add macOS-specific paths
-if [[ "$(uname)" == "Darwin" ]]; then
-    PATH="/opt/homebrew/bin:$HOME/.brew/bin:/Applications/Emacs.app/Contents/MacOS/bin:$PATH"
+if [ "$(uname)" = "Darwin" ]; then
+    prepend_path "/Applications/Emacs.app/Contents/MacOS/bin"
+    prepend_path "$HOME/.brew/bin"
+    prepend_path "/opt/homebrew/bin"
 fi
 
 command -v nvim >/dev/null 2>&1 && alias vi=nvim
@@ -59,23 +82,25 @@ command -v nvim >/dev/null 2>&1 && alias vi=nvim
 export EDITOR="led --no-workspace"
 
 if type brew >/dev/null 2>&1; then
-    if [ -f $(brew --prefix)/etc/bash_completion ]; then
-        . $(brew --prefix)/etc/bash_completion
+    if [ -f "$(brew --prefix)/etc/bash_completion" ]; then
+        . "$(brew --prefix)/etc/bash_completion"
     fi
+fi
+if [ "$(uname)" = "Darwin" ]; then
     alias ls="ls -FG"
 else
-    alias ls="ls -F --color"
+    alias ls="ls -F -N --color"
 fi
 
 # Restore git add -A as it used to be.
-git() { if [[ $@ == "add -A" ]]; then command git add -A :/; else command git "$@"; fi; }
+git() { if [ "$*" = "add -A" ]; then command git add -A :/; else command git "$@"; fi; }
 
 
 # set a fancy prompt (non-color, unless we know we "want" color)
 #PS1="\h$ "
-case "$TERM" in
-    xterm-color|*-256color|screen) color_prompt=yes;;
-esac
+if [ -t 1 ] && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+    color_prompt=yes
+fi
 if [ "$color_prompt" = yes ]; then
     PS1='${debian_chroot:+($debian_chroot)}\[\033[01;32m\]\u@\h\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 else
@@ -83,20 +108,26 @@ else
 fi
 unset color_prompt
 
-test `uname` == 'Darwin' && ssh-add -A > /dev/null 2>&1
+[ "$(uname)" = "Darwin" ] && ssh-add -A > /dev/null 2>&1
 
 # Local amends
-[[ -s "$HOME/.localx" ]] && source "$HOME/.localx"
+[ -s "$HOME/.localx" ] && . "$HOME/.localx"
 
 # Deno
-if [[ -d "$HOME/.deno" ]]; then
+if [ -d "$HOME/.deno" ]; then
     export DENO_INSTALL="$HOME/.deno"
-    export PATH="$DENO_INSTALL/bin:$PATH"
+    prepend_path "$DENO_INSTALL/bin"
 fi
+export PATH
 
 # macOS dynamic library path (brew)
-if [[ "$(uname)" == "Darwin" ]] && command -v brew >/dev/null 2>&1; then
-    export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH:+$DYLD_LIBRARY_PATH:}$(brew --prefix)/lib"
+if [ "$(uname)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+    _brew_lib="$(brew --prefix)/lib"
+    case ":${DYLD_LIBRARY_PATH:-}:" in
+        *":$_brew_lib:"*) ;;
+        *) export DYLD_LIBRARY_PATH="${DYLD_LIBRARY_PATH:+$DYLD_LIBRARY_PATH:}$_brew_lib" ;;
+    esac
+    unset _brew_lib
 fi
 
 export MACOS_SIGNING_KEY="Developer ID Application: Taglab Consulting S.L. (JUB99UJD56)"
