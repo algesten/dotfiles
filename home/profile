@@ -95,6 +95,23 @@ fi
 # Restore git add -A as it used to be.
 git() { if [ "$*" = "add -A" ]; then command git add -A :/; else command git "$@"; fi; }
 
+# md: render markdown -> self-contained styled HTML -> throwaway surf window.
+# Linux only (macOS uses `open`/a different viewer). Style: config/md/github.css.
+if [ "$(uname)" != "Darwin" ]; then
+    md() {
+        if [ -z "$1" ] || [ ! -f "$1" ]; then
+            echo "usage: md <file.md>" >&2; return 2
+        fi
+        _md_out="/tmp/md-preview-$(basename "$1").html"
+        pandoc -f gfm -s --embed-resources \
+               --template "$HOME/dev/dotfiles/config/md/template.html" \
+               --metadata title="$(basename "$1")" --metadata lang=en \
+               -c "$HOME/dev/dotfiles/config/md/github.css" \
+               --highlight-style tango "$1" -o "$_md_out" || return 1
+        GDK_BACKEND=x11 surf "$_md_out" >/dev/null 2>&1 &
+    }
+fi
+
 
 # set a fancy prompt (non-color, unless we know we "want" color)
 #PS1="\h$ "

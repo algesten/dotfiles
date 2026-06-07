@@ -36,3 +36,24 @@ echo "Overwriting config/zed to $HOME/.config/zed"
 rm -rf $HOME/.config/_zed
 mv $HOME/.config/zed $HOME/.config/_zed >/dev/null 2>&1
 cp -R config/zed $HOME/.config/
+
+# COSMIC config — symlink individual files into ~/.config/cosmic.
+# (cosmic-config does in-place writes, so it follows these symlinks and
+#  writes through to the repo; safe to symlink rather than copy.)
+# Linux/COSMIC only — skip cleanly on macOS and non-COSMIC machines.
+if command -v cosmic-comp >/dev/null 2>&1 || [[ -d "$HOME/.config/cosmic" ]]; then
+  cosmic_files="
+com.system76.CosmicComp/v1/xkb_config
+com.system76.CosmicComp/v1/input_default
+com.system76.CosmicComp/v1/input_touchpad
+com.system76.CosmicSettings.Shortcuts/v1/custom
+com.system76.CosmicSettings.Shortcuts/v1/system_actions
+"
+  for rel in $cosmic_files; do
+    dst="$HOME/.config/cosmic/$rel"
+    mkdir -p "$(dirname "$dst")"
+    link "$dotfiles/config/cosmic/$rel" "$dst"
+  done
+else
+  echo "Skipping COSMIC config (cosmic not detected)"
+fi

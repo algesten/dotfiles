@@ -1,0 +1,55 @@
+{
+    (
+        modifiers: [
+            Super,
+        ],
+    ): Disable,
+    (
+        modifiers: [],
+        key: "F1",
+    ): Disable,
+    (
+        modifiers: [
+            Ctrl,
+        ],
+        key: "Prior",
+    ): System(InputSourceSwitch),
+    (
+        modifiers: [
+            Super,
+            Shift,
+        ],
+        key: "5",
+    ): Spawn("cosmic-screenshot --interactive=false"),
+    (
+        modifiers: [
+            Super,
+        ],
+        key: "slash",
+    ): Disable,
+    (
+        modifiers: [
+            Super,
+            Shift,
+        ],
+        key: "4",
+    ): System(Screenshot),
+    (
+        modifiers: [],
+        key: "XF86MonBrightnessDown",
+    ): Spawn("brightness -"),
+    (
+        modifiers: [],
+        key: "XF86MonBrightnessUp",
+    ): Spawn("brightness +"),
+    (
+        modifiers: [
+            Super,
+        ],
+        key: "space",
+    ): System(Launcher),
+    (
+        modifiers: [],
+        key: "Print",
+    ): Disable,
+}
