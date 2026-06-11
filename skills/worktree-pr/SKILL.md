@@ -24,7 +24,7 @@ The steps below check CI with the standard `gh` CLI, which works on any GitHub r
 - **Watch until they finish:** `gh pr checks <pr#> --watch`
 - **Check a branch's latest run:** `gh run list --branch <branch> --limit 1`
 
-If the project ships its own richer CI helper (e.g. `pr-error`, which prints failing-step logs and can watch), prefer it where noted — but the `gh` commands are the portable fallback.
+If the project ships its own richer CI helper that can inspect GitHub check failures or watch PR CI, prefer it where noted — but the `gh` commands are the portable baseline.
 
 ## Gitignoring `.wt`
 
@@ -72,13 +72,13 @@ cd <wt> && gh pr checks <pr#>
 
 **Do NOT wait on CI (`--watch`) during iteration.** If `gh pr checks` shows a visible failure while CI is still running on later steps, fix and push immediately — the new push cancels the old run, so waiting is wasted.
 
-After the final push for an iteration — when you believe the PR is ready for user review or the latest requested fixes are complete — start the project's CI failure watcher in the background so you get notified immediately while staying available to the user:
+After the final push for an iteration — when you believe the PR is ready for user review or the latest requested fixes are complete — start a GitHub CI watcher in the background so you get notified immediately while staying available to the user:
 
 ```sh
-cd <wt> && pr-error <pr#> --watch
+cd <wt> && gh pr checks <pr#> --watch
 ```
 
-Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from its output, fix, commit, push, and start a fresh background watcher for the new head. If the project does not have `pr-error`, use the closest project CI helper; otherwise fall back to `gh pr checks <pr#> --watch` in the background.
+Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from the GitHub check output and failing logs, fix, commit, push, and start a fresh background watcher for the new head. If the project has a richer CI helper, use it instead of `gh pr checks <pr#> --watch`.
 
 First push: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no `🤖 Generated with [Claude Code]` attribution line. The body becomes the squash commit message verbatim, and the commit's `Co-Authored-By: Claude ...` trailer already handles attribution; double-attributing litters `git log`. Subsequent pushes update the existing PR — no re-create needed.
 
@@ -105,7 +105,7 @@ git -C <wt> fetch origin && git -C <wt> rebase origin/main
 git -C <wt> push --force-with-lease origin <branch>
 ```
 
-Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, launch the project's CI watcher as a background worker** (`cd <wt> && pr-error <pr#> --watch` when available, otherwise `gh pr checks <pr#> --watch`) — don't sit idle; the next step does useful work in parallel.
+Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, launch a GitHub CI watcher as a background worker** (`cd <wt> && gh pr checks <pr#> --watch`, or a richer project CI helper when available) — don't sit idle; the next step does useful work in parallel.
 
 ### 7. Audit the PR description (in parallel with the step-6 watcher)
 
