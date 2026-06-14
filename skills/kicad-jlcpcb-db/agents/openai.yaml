@@ -1,0 +1,4 @@
+interface:
+  display_name: "KiCad JLCPCB DB"
+  short_description: "Review KiCad JLCPCB BOMs and query the local parts catalog."
+  default_prompt: "Use the KiCad JLCPCB DB skill to run a fab-prep BOM review, inspect selected LCSC parts, join project assignments to the plugin catalog, and flag stock, catalog, and Basic-vs-Extended issues before fabrication."
