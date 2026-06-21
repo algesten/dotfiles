@@ -72,12 +72,31 @@ When the user says `Run the BOM review to prepare for fab` or similar:
 
 When ranking candidate JLC parts, use this default priority:
 
-1. Basic parts trump Extended parts. Prefer Basic strongly enough to consider package changes or modest circuit redesign if it materially improves manufacturability. Treat Preferred as better than Extended but below Basic unless the user says otherwise.
-2. Stock matters. Parts under 500 in stock are a warning sign. Parts under 100 are a hard no unless the user explicitly overrides it. Prefer stock well above 1000; among equivalent choices, choose the part with the highest stock.
-3. Price is secondary. Below USD 1 per part, price normally does not matter. Consider price only when the difference is meaningful, such as several USD per unit or a 5-10 USD build impact.
-4. Avoid JLC-mounted THT when practical. Through-hole assembly adds an extra soldering/assembly fee and process step, so prefer SMT equivalents for parts JLCPCB will mount. A THT part can still be accepted when stock/function/package tradeoffs justify it, when it will be manually soldered, or when no credible SMT redesign exists.
+1. Reject any part JLCPCB marks `Consign` or user-supplier. Reject LCSC codes beginning `C99`, but do not treat that prefix as the only consign signal. Consign/user-supplier parts mean the user would have to send parts to JLCPCB, and they are not acceptable candidates unless the user explicitly overrides this rule.
+2. Basic parts trump Extended parts. Prefer Basic strongly enough to consider package changes or modest circuit redesign if it materially improves manufacturability. Treat Preferred as better than Extended but below Basic unless the user says otherwise.
+3. Stock matters. Parts under 500 in stock are a warning sign. Parts under 100 are a hard no unless the user explicitly overrides it. Prefer stock well above 1000; among equivalent choices, choose the part with the highest stock.
+4. Price is secondary. Below USD 1 per part, price normally does not matter. Consider price only when the difference is meaningful, such as several USD per unit or a 5-10 USD build impact.
+5. Avoid JLC-mounted THT when practical. Through-hole assembly adds an extra soldering/assembly fee and process step, so prefer SMT equivalents for parts JLCPCB will mount. A THT part can still be accepted when stock/function/package tradeoffs justify it, when it will be manually soldered, or when no credible SMT redesign exists.
 
-The `candidates` helper sorts by library type first (`Basic`, then `Preferred`, then `Extended`), then stock tier (`>=1000`, `>=500`, `>=100`, `<100`), then stock quantity, then minimum listed unit price.
+The `candidates` helper sorts valid non-`C99` parts first, then by library type (`Basic`, then `Preferred`, then `Extended`), then stock tier (`>=1000`, `>=500`, `>=100`, `<100`), then stock quantity, then minimum listed unit price.
+
+
+## User JLCPCB Inventory
+
+For this user, the smallest practical JLCPCB assembly order is 2 units.
+
+Parts intentionally supplied from the user's JLCPCB part library / prepaid inventory should not be treated as active stock problems during BOM review, even when catalog stock is low or zero. Still verify that the selected LCSC part matches the schematic role, package, and footprint.
+
+Known user part library / prepaid inventory from project notes and user-provided JLCPCB inventory screenshots:
+
+| LCSC | Part | Inventory note |
+|------|------|----------------|
+| C338758 | SN74HC163DR | prepaid/library part; ignore catalog stock warning |
+| C432201 | STM32G031J6M6 | prepaid/library part; ignore catalog stock warning |
+| C2652279 | TL084CPT | user library quantity 36 |
+| C524236 | PCM3060PW | user library quantity 32 |
+| C880681 | MAX6818EAP+T | user library quantity 10 |
+| C91754 | HY931147C | user library quantity 46 |
 
 ## Query Helper
 

@@ -125,10 +125,15 @@ def stock_priority(stock: int) -> int:
     return 3
 
 
-def candidate_sort_key(row: sqlite3.Row, stem: str) -> tuple[int, int, int, float, str]:
+def is_user_supplier_lcsc(lcsc: str) -> bool:
+    return (lcsc or "").upper().startswith("C99")
+
+
+def candidate_sort_key(row: sqlite3.Row, stem: str) -> tuple[int, int, int, int, float, str]:
     stock = stock_value(row["Stock"])
     mfr = str(row["MFR.Part"] or "")
     return (
+        1 if is_user_supplier_lcsc(str(row["LCSC Part"] or "")) else 0,
         library_priority(str(row["Library Type"] or "")),
         stock_priority(stock),
         -stock,
@@ -255,6 +260,8 @@ def cmd_bom_review(args: argparse.Namespace) -> None:
         if not row["catalog_mfr_part"]:
             rows.append({"severity": "ERROR", "issue": "selected_lcsc_not_in_catalog", **base})
             continue
+        if is_user_supplier_lcsc(lcsc):
+            rows.append({"severity": "ERROR", "issue": "user_supplier_lcsc_not_acceptable", **base})
         if stock < 100:
             rows.append({"severity": "ERROR", "issue": "stock_below_100", **base})
         elif stock < 500:
@@ -267,10 +274,11 @@ def cmd_bom_review(args: argparse.Namespace) -> None:
     issue_order = {
         "included_blank_lcsc": 0,
         "selected_lcsc_not_in_catalog": 1,
-        "stock_below_100": 2,
-        "stock_below_500": 3,
-        "extended_part_consider_basic": 4,
-        "preferred_part_consider_basic": 5,
+        "user_supplier_lcsc_not_acceptable": 2,
+        "stock_below_100": 3,
+        "stock_below_500": 4,
+        "extended_part_consider_basic": 5,
+        "preferred_part_consider_basic": 6,
     }
     rows.sort(key=lambda row: (severity_order[row["severity"]], issue_order[row["issue"]], str(row["reference"])))
     if rows:
