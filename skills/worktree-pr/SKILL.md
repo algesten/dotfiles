@@ -13,6 +13,8 @@ A repo where direct pushes to `origin/main` are out and **all work lands via squ
 - `<wt>` — the PR-specific worktree, conventionally `<main-folder>/.wt/<branch>` (nested under the main checkout, inside the gitignored `.wt/` dir).
 - `<branch>` — pick it to read as the PR's purpose.
 - `<pr#>` — the PR number once created.
+- `<head-remote>` — the remote that owns an existing PR branch when taking over someone else's PR; usually `origin` for same-repo branches, or a temporary remote for fork PRs.
+- `<head-ref>` — the existing PR's head branch name when taking over someone else's PR.
 
 Substitute your own paths — never hard-code anyone else's.
 
@@ -40,6 +42,28 @@ If it prints `NOT IGNORED`, add `.wt/` to the repo's `.gitignore` (commit it on 
 echo ".wt/" >> <main-folder>/.git/info/exclude
 ```
 
+## Local worktree handling
+
+Because the same PR may be handled from multiple machines, do not assume the PR worktree already exists locally, and do not assume an existing local worktree is current with GitHub. Before creating a worktree for an existing PR, inspect local worktrees and prefer reusing the PR's existing `<wt>` when present:
+
+```sh
+git -C <main-folder> worktree list
+cd <main-folder> && gh pr view <pr#> --json headRefName,headRepositoryOwner,headRepository,isCrossRepository,url
+```
+
+If a local worktree for the PR branch is present, resume it instead of creating another `.wt/` entry for the same PR. Fetch the PR head, verify the worktree has no uncommitted work you would overwrite, then resync the local branch to the PR head:
+
+```sh
+git -C <wt> status --short
+git -C <main-folder> fetch <head-remote> <head-ref>
+git -C <wt> switch <branch>
+git -C <wt> reset --hard FETCH_HEAD
+```
+
+Only use `reset --hard` when the worktree is clean or its local changes are known to be disposable; otherwise inspect and preserve the local work first. For same-repo PRs, `<head-remote>` is usually `origin`. For fork PRs, add or reuse the temporary fork remote before fetching, as described in step 2b.
+
+If no suitable local worktree exists, create one using the workflow below. Avoid creating multiple worktrees for the same PR unless there is a deliberate reason, and call that reason out to the user before doing it.
+
 ## Workflow
 
 ### 1. Sync the main folder and verify its CI is green
@@ -61,6 +85,37 @@ git -C <main-folder> worktree add -b <branch> <wt> origin/main
 
 `origin/main` is fresh from step 1's pull. **Never `git checkout` in the main folder.** From here on, prefix all git ops with `git -C <wt> ...`, run build/test commands as `cd <wt> && ...` one-shots, and use absolute paths into the worktree for Read/Edit/Write. `gh` reads the repo from cwd too — run it as `cd <wt> && gh pr ...`.
 
+### 2b. Or take over an existing PR
+
+When the user wants you to finish someone else's open PR, keep the same invariant: the main folder stays on `main`, and all edits happen in a nested worktree. First inspect where the PR branch lives:
+
+```sh
+cd <main-folder> && gh pr view <pr#> --json headRefName,headRepositoryOwner,headRepository,maintainerCanModify,isCrossRepository,url
+```
+
+If the branch is in the same repo, fetch it and create the worktree from that head:
+
+```sh
+git -C <main-folder> fetch origin <head-ref>
+git -C <main-folder> worktree add <wt> FETCH_HEAD
+```
+
+If the branch is from a fork, confirm `maintainerCanModify` is true before making commits. Add/fetch a temporary remote for the fork, then create the worktree from that fork head:
+
+```sh
+git -C <main-folder> remote add <head-remote> <fork-url>
+git -C <main-folder> fetch <head-remote> <head-ref>
+git -C <main-folder> worktree add <wt> FETCH_HEAD
+```
+
+Immediately create or attach a local branch in the worktree so later commits and force-pushes have a named branch. For takeover PRs, prefer using the PR's `<head-ref>` as the local `<branch>` unless there is already a conflicting local branch:
+
+```sh
+git -C <wt> switch -c <branch>
+```
+
+For takeover PRs, your commits may be additional tweaks on top of someone else's work, but every later PR-description update must describe the **entire PR as it will be squash-merged**, not just your extra commits. Push back to the PR head, not a replacement branch: same-repo PRs use `origin <branch>` only when `<branch>` equals `<head-ref>`; otherwise use `origin <branch>:<head-ref>`. Fork PRs use `<head-remote> <branch>:<head-ref>`.
+
 ### 3. Iterate
 
 Commit (HEREDOC + `Co-Authored-By` trailer) → push → check CI:
@@ -69,6 +124,8 @@ Commit (HEREDOC + `Co-Authored-By` trailer) → push → check CI:
 git -C <wt> push origin <branch>
 cd <wt> && gh pr checks <pr#>
 ```
+
+For takeover PRs whose local `<branch>` differs from `<head-ref>`, substitute the push target with `git -C <wt> push origin <branch>:<head-ref>` for same-repo PRs, or `git -C <wt> push <head-remote> <branch>:<head-ref>` for fork PRs, so the existing PR updates in place.
 
 **Do NOT wait on CI (`--watch`) during iteration.** If `gh pr checks` shows a visible failure while CI is still running on later steps, fix and push immediately — the new push cancels the old run, so waiting is wasted.
 
@@ -80,7 +137,7 @@ cd <wt> && gh pr checks <pr#> --watch
 
 Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from the GitHub check output and failing logs, fix, commit, push, and start a fresh background watcher for the new head. If the project has a richer CI helper, use it instead of `gh pr checks <pr#> --watch`.
 
-First push: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no `🤖 Generated with [Claude Code]` attribution line. The body becomes the squash commit message verbatim, and the commit's `Co-Authored-By: Claude ...` trailer already handles attribution; double-attributing litters `git log`. Subsequent pushes update the existing PR — no re-create needed.
+First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no `🤖 Generated with [Claude Code]` attribution line. The body becomes the squash commit message verbatim, and the commit's `Co-Authored-By: Claude ...` trailer already handles attribution; double-attributing litters `git log`. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
 
 Standing authorization: commit and push to feature branches freely as work lands — no per-action OK. Surface the commit message + scope inline so the user can redirect, but it's informational, not a gate.
 
@@ -105,7 +162,7 @@ git -C <wt> fetch origin && git -C <wt> rebase origin/main
 git -C <wt> push --force-with-lease origin <branch>
 ```
 
-Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, launch a GitHub CI watcher as a background worker** (`cd <wt> && gh pr checks <pr#> --watch`, or a richer project CI helper when available) — don't sit idle; the next step does useful work in parallel.
+For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <wt> push --force-with-lease origin <branch>:<head-ref>` for same-repo PRs, or `git -C <wt> push --force-with-lease <head-remote> <branch>:<head-ref>` for fork PRs. Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, launch a GitHub CI watcher as a background worker** (`cd <wt> && gh pr checks <pr#> --watch`, or a richer project CI helper when available) — don't sit idle; the next step does useful work in parallel.
 
 ### 7. Audit the PR description (in parallel with the step-6 watcher)
 
@@ -113,7 +170,18 @@ Force-push to a PR branch after rebase is part of the standing authorization; **
 cd <wt> && gh pr view <pr#> --json title,body
 ```
 
-The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, no Claude attribution line.
+The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, no Claude attribution line.
+
+### 7b. Audit `CHANGELOG.md` when present
+
+If `<main-folder>/CHANGELOG.md` exists, ensure the PR includes an appropriate changelog line before merge. Read nearby existing entries and follow the repo's format to the letter:
+
+- Preserve section placement, bullet style, prefixes, wrapping, and line length.
+- Incorporate the PR number exactly the way surrounding entries do; don't invent a new `#<pr#>` or `PR <pr#>` style if the file uses another convention.
+- The entry must describe the user-visible change from the whole PR, not merely your additional tweaks on a takeover PR.
+- If the PR is not user-visible and the changelog has a clear convention for skipping such entries, follow that convention; otherwise ask before omitting it.
+
+Commit and push any changelog correction, then relaunch the CI watcher because the branch head changed.
 
 ### 8. Await the CI watcher's notification
 
@@ -139,6 +207,16 @@ git -C <main-folder> branch -D <branch>
 ```
 
 If the project provides a cleanup target that also tears down per-branch build artifacts (simulators, emulators, containers, scratch dirs), prefer it — those can cost real disk and ports if left behind, so cleanup is mandatory, not optional. The remote branch is already gone — GitHub deleted it at merge (when `delete_branch_on_merge` is enabled; otherwise `gh pr merge --squash --delete-branch` handles it).
+
+After cleanup, if the main folder is still on `main` and clean, pull it forward so the parked checkout contains the squash-merged result and any other latest changes:
+
+```sh
+git -C <main-folder> status --short
+git -C <main-folder> branch --show-current
+git -C <main-folder> pull --ff-only origin main
+```
+
+If the main folder is dirty, do not pull over local changes; report that the final main-folder refresh was skipped because the checkout was not clean.
 
 ## Guardrails
 
