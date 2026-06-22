@@ -77,7 +77,7 @@ The pull keeps the main folder current so Read ops reflect latest; `--ff-only` f
 
 ### 2. Create the worktree (stay launched from the main folder)
 
-The main folder is the launch cwd that binds Claude's memory path under `~/.claude/projects/`, so launching elsewhere loses memory; it also stays parked on `main` so parallel PRs don't collide on the working tree.
+The main folder is the launch cwd and stays parked on `main` so parallel PRs don't collide on the working tree.
 
 ```sh
 git -C <main-folder> worktree add -b <branch> <wt> origin/main
@@ -118,7 +118,7 @@ For takeover PRs, your commits may be additional tweaks on top of someone else's
 
 ### 3. Iterate
 
-Commit (HEREDOC + `Co-Authored-By` trailer) → push → check CI:
+Commit → push → check CI:
 
 ```sh
 git -C <wt> push origin <branch>
@@ -137,7 +137,7 @@ cd <wt> && gh pr checks <pr#> --watch
 
 Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from the GitHub check output and failing logs, fix, commit, push, and start a fresh background watcher for the new head. If the project has a richer CI helper, use it instead of `gh pr checks <pr#> --watch`.
 
-First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no `🤖 Generated with [Claude Code]` attribution line. The body becomes the squash commit message verbatim, and the commit's `Co-Authored-By: Claude ...` trailer already handles attribution; double-attributing litters `git log`. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
+First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section and no generated-by or co-author attribution lines. The body becomes the squash commit message verbatim. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
 
 Standing authorization: commit and push to feature branches freely as work lands — no per-action OK. Surface the commit message + scope inline so the user can redirect, but it's informational, not a gate.
 
@@ -170,7 +170,7 @@ For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <
 cd <wt> && gh pr view <pr#> --json title,body
 ```
 
-The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, no Claude attribution line.
+The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, and no generated-by or co-author attribution lines.
 
 ### 7b. Audit `CHANGELOG.md` when present
 
