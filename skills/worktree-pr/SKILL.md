@@ -137,7 +137,7 @@ cd <wt> && gh pr checks <pr#> --watch
 
 Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from the GitHub check output and failing logs, fix, commit, push, and start a fresh background watcher for the new head. If the project has a richer CI helper, use it instead of `gh pr checks <pr#> --watch`.
 
-First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section and no generated-by or co-author attribution lines. The body becomes the squash commit message verbatim. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
+First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no generated-by or co-author attribution lines, and **no follow-up / deferred-work / "next PR" / "known limitation" notes** (see the body-is-the-commit-message guardrail below). The body becomes the squash commit message verbatim. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
 
 Standing authorization: commit and push to feature branches freely as work lands — no per-action OK. Surface the commit message + scope inline so the user can redirect, but it's informational, not a gate.
 
@@ -170,7 +170,7 @@ For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <
 cd <wt> && gh pr view <pr#> --json title,body
 ```
 
-The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, and no generated-by or co-author attribution lines.
+The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, no generated-by or co-author attribution lines, and **no follow-up / deferred / "next PR" notes** (see the guardrail below). If a forward-pointer crept into the body during iteration, strip it now — this audit is the last chance before it becomes permanent history.
 
 ### 7b. Audit `CHANGELOG.md` when present
 
@@ -220,6 +220,7 @@ If the main folder is dirty, do not pull over local changes; report that the fin
 
 ## Guardrails
 
+- **The PR body IS the commit message — it states only what the change is, never what comes next.** Squash-merge uses the title + body verbatim as the permanent commit message on `main`. So the body must contain *only* a description of the change that landed: no "Known follow-up", "next PR", "deferred to a later PR", "known limitation", "TODO", or any other forward-pointer — not even a single sentence. Those read fine in a GitHub PR but are wrong in `git log` forever. Deferred/follow-up work goes where the project tracks it (a STATUS-style doc, an issue, a backlog) — **never** the PR body. This trap is one-way: once squashed, the only way to remove the note is `git commit --amend` + **force-push to `main`, which is off-limits** — so it can't be cleanly undone. Catch it at write time (step 3) and again at the pre-merge audit (step 7). If you have a genuine follow-up to record, mention it to the user in chat and/or add it to the tracker; keep it out of the commit message.
 - **Don't unilaterally defer agreed scope.** Once a PR's scope is agreed, never mid-implementation decide a piece is "too much for this PR," mark it a follow-up, and call the PR ready — ask first. "Fully implemented" means it **runs end-to-end on the target surface**, not "it compiles." A `What's deferred to follow-up PRs` section requires explicit user authorization for each item.
 - **Surface quality red flags as a question before opening the PR**, not as a buried follow-up.
 - **Capture real exit codes** — never pipe a build/test you're judging into `tail`/`head`/`grep`; the pipeline's status is the last stage's. Redirect to a file and check `$?`.
