@@ -148,3 +148,7 @@ if [ "$(uname)" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
 fi
 
 export MACOS_SIGNING_KEY="Developer ID Application: Taglab Consulting S.L. (JUB99UJD56)"
+
+alias cxlow="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"low\"'"
+alias cxmid="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"medium\"'"
+alias cxmax="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"max\"'"
