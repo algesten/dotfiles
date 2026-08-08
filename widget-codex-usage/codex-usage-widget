@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# Render Codex weekly quotas into a Terminal Widget.
+#
+#   codex-usage-widget                 one-shot update
+#   codex-usage-widget --watch 60      poll every 60s
+#   codex-usage-widget --dump          print the raw quota response and exit
+#   codex-usage-widget --demo          render canned values without the network
+#
+# Quota comes from Codex's authenticated account/rateLimits/read app-server
+# method. This makes a usage lookup request, not a model request.
+
+set -uo pipefail
+
+TARGET="${CXUW_TARGET:-widget2}"
+INTERVAL="${CXUW_INTERVAL:-60}"
+BAR_WIDTH="${CXUW_BAR_WIDTH:-24}"
+FONT="${CXUW_FONT:-Menlo}"
+FONT_SIZE="${CXUW_FONT_SIZE:-12}"
+BACKGROUND="${CXUW_BACKGROUND:-#1F3454}"
+FOREGROUND="${CXUW_FOREGROUND:-#E5EDF7}"
+CACHE="${CXUW_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/codex-usage-widget/state}"
+MIN_AGE="${CXUW_MIN_AGE:-120}"
+MAX_AGE="${CXUW_MAX_AGE:-1800}"
+SESSIONS_DIR="${CXUW_SESSIONS:-$HOME/.codex/sessions}"
+RETRIES="${CXUW_RETRIES:-2}"
+WATCH=0
+DUMP=0
+DEMO=0
+FORCE=0
+
+C_GREEN=$'\033[38;2;127;203;145m'
+C_AMBER=$'\033[38;2;235;203;139m'
+C_RED=$'\033[38;2;191;97;106m'
+C_DIM=$'\033[38;2;139;144;152m'
+C_OFF=$'\033[0m'
+
+usage() {
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+
+Options:
+  --target NAME     Terminal Widget target (default: widget2, or $CXUW_TARGET)
+  --watch [SECS]    Poll forever; SECS defaults to 60 (or $CXUW_INTERVAL)
+  --interval SECS   Poll interval for --watch
+  --bar-width N     Bar cells (default: 24)
+  --force           Ignore cache freshness and fetch now
+  --dump            Print the raw rate-limit response and normalized rows
+  --demo            Render canned numbers without querying Codex
+  --once            One-shot update (default)
+  -h, --help        This help
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target)    TARGET="${2:?--target needs a name}"; shift 2 ;;
+    --watch)
+      WATCH=1; shift
+      if [ $# -gt 0 ] && printf '%s' "$1" | grep -qE '^[0-9]+$'; then INTERVAL="$1"; shift; fi
+      ;;
+    --interval)  INTERVAL="${2:?--interval needs seconds}"; shift 2 ;;
+    --bar-width) BAR_WIDTH="${2:?--bar-width needs a number}"; shift 2 ;;
+    --force)     FORCE=1; shift ;;
+    --dump)      DUMP=1; FORCE=1; shift ;;
+    --demo)      DEMO=1; shift ;;
+    --once)      WATCH=0; shift ;;
+    -h|--help)   usage; exit 0 ;;
+    *) printf 'unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+for dep in codex jq terminal-widget; do
+  command -v "$dep" >/dev/null 2>&1 || { printf 'missing dependency: %s\n' "$dep" >&2; exit 1; }
+done
+
+# ── fetching ─────────────────────────────────────────────────────────────
+BODY=''
+FETCH_ERR=''
+
+# Starts the app-server on a private FIFO, negotiates the protocol, and asks
+# for the same rate-limit snapshot used by the Codex TUI. The FIFO remains
+# open until the response arrives so the server does not shut down early.
+fetch_usage() {
+  local runtime fifo responses errors pid attempts line rc=0
+  BODY=''; FETCH_ERR=''
+  runtime=$(mktemp -d "${TMPDIR:-/tmp}/codex-usage-widget.XXXXXX") || return 4
+  fifo="$runtime/requests"
+  responses="$runtime/responses.jsonl"
+  errors="$runtime/app-server.log"
+  mkfifo "$fifo" || { rmdir "$runtime"; return 4; }
+  : >"$responses"; : >"$errors"
+
+  codex app-server --stdio <"$fifo" >"$responses" 2>"$errors" &
+  pid=$!
+  exec 3>"$fifo"
+  printf '%s\n' \
+    '{"id":1,"method":"initialize","params":{"clientInfo":{"name":"codex-usage-widget","version":"1.0"},"capabilities":{"experimentalApi":true}}}' >&3
+
+  attempts=0
+  while [ "$attempts" -lt 150 ]; do
+    line=$(jq -c 'select(.id == 1)' "$responses" 2>/dev/null | tail -1)
+    [ -n "$line" ] && break
+    kill -0 "$pid" 2>/dev/null || { rc=4; break; }
+    sleep 0.1; attempts=$((attempts + 1))
+  done
+
+  if [ "$rc" -eq 0 ] && [ -n "${line:-}" ]; then
+    printf '%s\n' \
+      '{"method":"initialized"}' \
+      '{"id":2,"method":"account/rateLimits/read","params":null}' >&3
+    attempts=0; line=''
+    while [ "$attempts" -lt 150 ]; do
+      line=$(jq -c 'select(.id == 2)' "$responses" 2>/dev/null | tail -1)
+      [ -n "$line" ] && break
+      kill -0 "$pid" 2>/dev/null || { rc=4; break; }
+      sleep 0.1; attempts=$((attempts + 1))
+    done
+  fi
+
+  exec 3>&-
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+
+  if [ "$rc" -eq 0 ] && [ -n "${line:-}" ]; then
+    BODY=$(printf '%s' "$line" | jq -c '.result // empty' 2>/dev/null)
+    if [ -z "$BODY" ]; then
+      FETCH_ERR=$(printf '%s' "$line" | jq -r '.error.message // "unrecognized app-server response"' 2>/dev/null)
+      rc=5
+    fi
+  else
+    FETCH_ERR=$(sed -n '1,3p' "$errors" 2>/dev/null)
+    [ -n "$FETCH_ERR" ] || FETCH_ERR='app-server request timed out'
+    rc=4
+  fi
+
+  rm -f "$fifo" "$responses" "$errors"
+  rmdir "$runtime" 2>/dev/null || true
+  return "$rc"
+}
+
+# Emits label / percentage left / reset epoch / period. Keep the general
+# Codex limit first, then named per-model limits. Duplicate snapshots are
+# avoided by using rateLimitsByLimitId when present and rateLimits otherwise.
+normalize() {
+  jq -r '
+    def limits:
+      if ((.rateLimitsByLimitId // {}) | length) > 0
+      then .rateLimitsByLimitId | to_entries
+      elif .rateLimits then [{key: (.rateLimits.limitId // "codex"), value: .rateLimits}]
+      else [] end;
+    limits
+    | sort_by(if .key == "codex" then 0 else 1 end)
+    | .[]
+    | select(.value.primary.usedPercent != null and .value.primary.resetsAt != null)
+    | [
+        (if .key == "codex" then "wk"
+         elif ((.value.limitName // "") | test("Spark"; "i")) then "Spark"
+         else ((.value.limitName // .key) | .[0:7]) end),
+        (100 - (.value.primary.usedPercent | tonumber)),
+        (.value.primary.resetsAt | tonumber),
+        ((.value.primary.windowDurationMins // 10080) * 60)
+      ]
+    | @tsv
+  ' 2>/dev/null
+}
+
+fetch_rows() {
+  local attempt=0 rc
+  ROWS=''
+  while :; do
+    fetch_usage; rc=$?
+    if [ "$rc" -eq 0 ]; then
+      ROWS=$(printf '%s' "$BODY" | normalize)
+      [ -n "$ROWS" ] && return 0
+      return 6
+    fi
+    attempt=$((attempt + 1))
+    [ "$attempt" -gt "$RETRIES" ] && return "$rc"
+    printf 'usage lookup failed (attempt %s); retrying\n' "$attempt" >&2
+    sleep $((2 ** attempt))
+  done
+}
+
+# ── cache ────────────────────────────────────────────────────────────────
+cache_stamp() {
+  local stamp=''
+  [ -f "$CACHE" ] && stamp=$(head -1 "$CACHE" 2>/dev/null | tr -cd '0-9')
+  printf '%s' "${stamp:-0}"
+}
+
+write_cache() {
+  local dir tmp
+  dir=$(dirname "$CACHE")
+  mkdir -p "$dir" 2>/dev/null || return 1
+  tmp="$CACHE.$$"
+  { date +%s; printf '%s\n' "$1"; } >"$tmp" 2>/dev/null || return 1
+  mv -f "$tmp" "$CACHE"
+}
+
+read_cache() { [ -f "$CACHE" ] && tail -n +2 "$CACHE" 2>/dev/null; }
+
+# Session JSONL files change throughout agentic turns, so their mtimes are a
+# better activity signal than submitted prompts. If the directory is absent,
+# degrade to polling at MIN_AGE rather than silently going stale.
+codex_active() {
+  [ -d "$SESSIONS_DIR" ] || return 0
+  [ -f "$CACHE" ] || return 0
+  [ -n "$(find "$SESSIONS_DIR" -name '*.jsonl' -newer "$CACHE" -print -quit 2>/dev/null)" ]
+}
+
+# If an idle cached window has reset, it is full again. Advance by complete
+# periods; the next real lookup corrects any server-side schedule change.
+adjust_rows() {
+  awk -F'\t' -v now="$(date +%s)" 'BEGIN { OFS = "\t" }
+  {
+    pct = $2; rst = $3 + 0; per = $4 + 0
+    for (i = 0; per > 0 && rst <= now && i < 10000; i++) { rst += per; pct = 100 }
+    print $1, pct, rst, per
+  }'
+}
+
+# ── rendering ────────────────────────────────────────────────────────────
+colour_for() {
+  if   [ "$1" -gt 50 ]; then printf '%s' "$C_GREEN"
+  elif [ "$1" -gt 20 ]; then printf '%s' "$C_AMBER"
+  else                       printf '%s' "$C_RED"
+  fi
+}
+
+bar_for() {
+  local filled=$(( ($1 * $2 + 50) / 100 )) i out=''
+  [ "$filled" -lt 0 ] && filled=0
+  [ "$filled" -gt "$2" ] && filled="$2"
+  for ((i = 0; i < filled; i++)); do out+='█'; done
+  for ((i = filled; i < $2; i++)); do out+='░'; done
+  printf '%s' "$out"
+}
+
+reset_for() {
+  local now today day
+  now=$(date +%s)
+  [ "$1" -le "$now" ] && { printf 'now'; return; }
+  today=$(date '+%Y%m%d')
+  day=$(date -r "$1" '+%Y%m%d')
+  if [ "$day" = "$today" ]; then date -r "$1" '+%H:%M'; else date -r "$1" '+%a %H:%M'; fi
+}
+
+render() {
+  local label left reset period pct colour head tail pad first=1
+  while IFS=$'\t' read -r label left reset period; do
+    [ -n "$label" ] || continue
+    pct=$(printf '%.0f' "$left" 2>/dev/null) || pct=0
+    [ "$pct" -lt 0 ] && pct=0
+    [ "$pct" -gt 100 ] && pct=100
+    [ "$first" -eq 1 ] || printf '\n'
+    first=0
+    colour=$(colour_for "$pct")
+    head=$(printf '%-8s%s%%' "$label" "$pct")
+    tail=$(reset_for "$reset")
+    pad=$(( BAR_WIDTH - ${#head} - ${#tail} ))
+    [ "$pad" -lt 1 ] && pad=1
+    printf '%s%s%s%*s%s%s%s\n' "$colour" "$head" "$C_OFF" "$pad" '' "$C_DIM" "$tail" "$C_OFF"
+    printf '%s%s%s\n' "$colour" "$(bar_for "$pct" "$BAR_WIDTH")" "$C_OFF"
+  done
+}
+
+push() {
+  terminal-widget --target "$TARGET" \
+    --title 'Codex usage' --title-alignment left \
+    --text - --ansi-mode on \
+    --font "$FONT" --font-size "$FONT_SIZE" \
+    --theme dark --background "$BACKGROUND" \
+    --foreground "$FOREGROUND" --title-color "$FOREGROUND" \
+    --background-mode >/dev/null
+}
+
+push_error() { printf '%s⚠ %s%s\n' "$C_RED" "$1" "$C_OFF" | push; }
+
+render_cache() {
+  local rows
+  rows=$(read_cache | adjust_rows)
+  [ -n "$rows" ] || return 1
+  printf '%s\n' "$rows" | render | push
+}
+
+report_failure() {
+  case "$1" in
+    4) push_error 'network or Codex unavailable' ;;
+    5) push_error 'Codex authentication failed' ;;
+    6) push_error 'unrecognized usage response' ;;
+    *) push_error 'usage lookup failed' ;;
+  esac
+  [ -n "$FETCH_ERR" ] && printf '%s\n' "$FETCH_ERR" >&2
+}
+
+update_once() {
+  local now stamp age rc need=0
+  now=$(date +%s); stamp=$(cache_stamp); age=$((now - stamp))
+  if   [ "$FORCE" -eq 1 ] || [ "$stamp" -eq 0 ]; then need=1
+  elif [ "$age" -ge "$MAX_AGE" ]; then need=1
+  elif [ "$age" -ge "$MIN_AGE" ] && codex_active; then need=1
+  fi
+
+  if [ "$need" -eq 1 ]; then
+    fetch_rows; rc=$?
+    if [ "$rc" -eq 0 ]; then
+      write_cache "$ROWS"
+    elif [ "$stamp" -gt 0 ] && [ "$age" -lt $((MAX_AGE * 2)) ] && render_cache; then
+      printf 'refresh failed; showing cache from %ss ago\n' "$age" >&2
+      return 1
+    else
+      report_failure "$rc"
+      return 1
+    fi
+  fi
+
+  render_cache && return 0
+  push_error 'no usage data yet'
+  return 1
+}
+
+if [ "$DEMO" -eq 1 ]; then
+  now=$(date +%s)
+  block=$(printf 'wk\t72\t%s\t604800\nSpark\t38\t%s\t604800\n' \
+    "$((now + 240000))" "$((now + 410000))" | render)
+  printf '%s\n' "$block"
+  printf '%s\n' "$block" | push
+  printf '\npushed demo to widget %s\n' "$TARGET" >&2
+  exit 0
+fi
+
+if [ "$DUMP" -eq 1 ]; then
+  fetch_usage; rc=$?
+  [ "$rc" -eq 0 ] || { printf '%s\n' "${FETCH_ERR:-usage lookup failed}" >&2; exit "$rc"; }
+  printf '%s\n' "$BODY" | jq .
+  printf '\n--- normalized (label / pct left / reset epoch / period) ---\n' >&2
+  printf '%s\n' "$BODY" | normalize | adjust_rows | sed 's/^/  /' >&2
+  exit 0
+fi
+
+if [ "$WATCH" -eq 1 ]; then
+  printf 'polling every %ss -> widget %s (ctrl-c to stop)\n' "$INTERVAL" "$TARGET" >&2
+  trap 'exit 0' INT TERM
+  while :; do
+    update_once || true
+    FORCE=0
+    sleep "$INTERVAL"
+  done
+fi
+
+update_once
