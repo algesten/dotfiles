@@ -1,0 +1,619 @@
+#!/usr/bin/env bash
+# Render Claude Code 5h + weekly quota into a Terminal Widget.
+#
+#   claude-usage-widget                 one-shot update
+#   claude-usage-widget --watch 60      poll every 60s
+#   claude-usage-widget --dump          print the raw quota response and exit
+#
+# Reads the OAuth access token Claude Code already stores (macOS Keychain item
+# "Claude Code-credentials", else ~/.claude/.credentials.json). The token is
+# re-read every poll, so Claude Code's own refresh keeps us live.
+#
+# Quota comes from the anthropic-ratelimit-unified-* response headers on a
+# minimal /v1/messages call, cached to disk and re-probed only when Claude Code
+# has actually been used. See --source for the older /api/oauth/usage path.
+
+set -uo pipefail
+
+TARGET="${CUW_TARGET:-widget1}"
+INTERVAL="${CUW_INTERVAL:-60}"
+BAR_WIDTH="${CUW_BAR_WIDTH:-24}"
+FONT="${CUW_FONT:-Menlo}"
+FONT_SIZE="${CUW_FONT_SIZE:-12}"
+SOURCE="${CUW_SOURCE:-probe}"
+CACHE="${CUW_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-usage-widget/state}"
+MIN_AGE="${CUW_MIN_AGE:-120}"     # never re-probe more often than this
+MAX_AGE="${CUW_MAX_AGE:-1800}"    # always re-probe once this stale
+PROBE_MODEL="${CUW_PROBE_MODEL:-claude-fable-5}"
+OI_LABEL="${CUW_OI_LABEL:-Fable}"
+PROJ_DIR="${CUW_PROJECTS:-$HOME/.claude/projects}"
+RETRIES="${CUW_RETRIES:-3}"       # in-process retries for 429 / 5xx / transport
+RETRY_MAX="${CUW_RETRY_MAX:-30}"  # longest we will block on one backoff
+WATCH=0
+DUMP=0
+DEMO=0
+FORCE=0
+
+USAGE_URL="${CUW_USAGE_URL:-https://api.anthropic.com/api/oauth/usage}"
+MSG_URL="${CUW_MSG_URL:-https://api.anthropic.com/v1/messages}"
+UA='claude-cli/2.1.224 (external, cli)'
+
+# Truecolor, matched to the widget's dark/light neutral background.
+C_GREEN=$'\033[38;2;122;193;132m'
+C_AMBER=$'\033[38;2;226;178;92m'
+C_RED=$'\033[38;2;226;122;115m'
+C_DIM=$'\033[38;2;150;150;150m'
+C_OFF=$'\033[0m'
+
+usage() {
+  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+
+Options:
+  --target NAME     Terminal Widget target (default: widget1, or $CUW_TARGET)
+  --watch [SECS]    Poll forever; SECS defaults to 60 (or $CUW_INTERVAL)
+  --interval SECS   Poll interval for --watch
+  --bar-width N     Bar cells (default: 24)
+  --source WHICH    probe (default, rate-limit headers) | endpoint (/api/oauth/usage)
+  --force           Ignore cache freshness and any active backoff; hit the API now
+  --dump            Print the raw quota response and exit
+  --demo            Render canned numbers (no API call) to tune appearance
+  --once            One-shot update (default)
+  -h, --help        This help
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --target)     TARGET="${2:?--target needs a name}"; shift 2 ;;
+    --watch)
+      WATCH=1; shift
+      # Optional bare numeric interval: --watch 30
+      if [ $# -gt 0 ] && printf '%s' "$1" | grep -qE '^[0-9]+$'; then INTERVAL="$1"; shift; fi
+      ;;
+    --interval)   INTERVAL="${2:?--interval needs seconds}"; shift 2 ;;
+    --bar-width)  BAR_WIDTH="${2:?--bar-width needs a number}"; shift 2 ;;
+    --source)     SOURCE="${2:?--source needs probe|endpoint}"; shift 2 ;;
+    --force)      FORCE=1; shift ;;
+    --dump)       DUMP=1; FORCE=1; shift ;;
+    --demo)       DEMO=1; shift ;;
+    --once)       WATCH=0; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    *) printf 'unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+case "$SOURCE" in
+  probe|endpoint) ;;
+  *) printf 'unknown --source: %s (want probe|endpoint)\n' "$SOURCE" >&2; exit 2 ;;
+esac
+
+for dep in curl jq terminal-widget; do
+  command -v "$dep" >/dev/null 2>&1 || { printf 'missing dependency: %s\n' "$dep" >&2; exit 1; }
+done
+
+# ── auth ─────────────────────────────────────────────────────────────────
+# The credential blob holds MCP server tokens alongside the Claude one, and
+# several of those have an empty accessToken. A recursive "first accessToken"
+# search therefore returns "" -- read the exact path, and only fall back to a
+# recursive search constrained to the sk-ant-oat prefix.
+#
+# Never echo $raw or the token: this blob contains every MCP server's
+# credentials too. Diagnostics report *which* step failed, never the value.
+# Sets TOKEN and TOKEN_ERR as globals rather than echoing, so callers invoke
+# it directly (`read_token || …`). A `$(read_token)` subshell would discard
+# TOKEN_ERR and leave the caller reporting a stale diagnostic.
+TOKEN=''
+TOKEN_ERR=''
+read_token() {
+  local raw='' tok=''
+  TOKEN=''; TOKEN_ERR=''
+
+  raw=$(security find-generic-password -s 'Claude Code-credentials' -w 2>/dev/null) || raw=''
+  if [ -z "$raw" ] && [ -r "$HOME/.claude/.credentials.json" ]; then
+    raw=$(cat "$HOME/.claude/.credentials.json" 2>/dev/null)
+  fi
+  if [ -z "$raw" ]; then
+    TOKEN_ERR='keychain item "Claude Code-credentials" unreadable and no ~/.claude/.credentials.json'
+    return 1
+  fi
+
+  tok=$(printf '%s' "$raw" | jq -r '
+      (.claudeAiOauth.accessToken // "") as $t
+      | if ($t | length) > 0 then $t
+        else ( first( .. | objects | (.accessToken? // "")
+                      | select(type == "string" and startswith("sk-ant-oat")) ) // "" )
+        end' 2>/dev/null)
+
+  if [ -z "$tok" ] || [ "$tok" = "null" ]; then
+    TOKEN_ERR='credentials found but no .claudeAiOauth.accessToken in them (logged out? run: claude auth)'
+    return 1
+  fi
+  TOKEN="$tok"
+}
+
+# ── fetching ─────────────────────────────────────────────────────────────
+# Both fetchers set globals rather than echoing: assigning HTTP_CODE inside a
+# $(…) subshell left it at its initial 000 forever.
+#   return 3 = no token, 4 = transport failure, 5 = non-200
+BODY=''
+HEADERS=''
+HTTP_CODE=000
+RETRY_AFTER=''
+
+# Last status line wins, so a 100-continue or redirect preamble is ignored.
+status_of() { printf '%s' "$1" | awk 'tolower($1) ~ /^http\// { c = $2 } END { print c + 0 }'; }
+
+# Retry-After may legally be an HTTP-date; we only understand deltas, and a
+# non-numeric value falls through to plain exponential backoff.
+retry_after_of() {
+  printf '%s' "$1" | tr -d '\r' \
+    | awk -F'[ \t]*:[ \t]*' 'tolower($1) == "retry-after" { v = $2 }
+                             END { if (v ~ /^[0-9]+$/) print v }'
+}
+
+# The endpoint the CLI's own /usage command hits. Richer (it names each scoped
+# model) but it is a bare quota-lookup route, and polling it once a minute
+# earns a 429 that no amount of backoff clears quickly. Kept for --dump and as
+# an escape hatch, not as the default.
+fetch_usage() {
+  local hdr
+  BODY=''; HTTP_CODE=000; RETRY_AFTER=''
+  read_token || return 3
+  hdr=$(mktemp "${TMPDIR:-/tmp}/cuw.XXXXXX") || return 4
+  BODY=$(curl -sS --max-time 10 -D "$hdr" "$USAGE_URL" \
+           -H "Authorization: Bearer $TOKEN" \
+           -H 'Content-Type: application/json' 2>/dev/null) || { rm -f "$hdr"; return 4; }
+  HEADERS=$(cat "$hdr" 2>/dev/null)
+  rm -f "$hdr"
+  HTTP_CODE=$(status_of "$HEADERS")
+  RETRY_AFTER=$(retry_after_of "$HEADERS")
+  [ "$HTTP_CODE" = "200" ] || return 5
+}
+
+# The quiet path: an ordinary inference request, which carries the same quota
+# numbers in its response headers. Constraints found by probing:
+#
+#   * Only /v1/messages emits anthropic-ratelimit-unified-*. /v1/models,
+#     /api/oauth/profile and /v1/messages/count_tokens all return 200 with no
+#     such headers, and a 400 is rejected by validation before the quota
+#     gateway runs, so a deliberately-malformed free probe gets nothing either.
+#   * An OAuth token requires the Claude Code system prompt verbatim as the
+#     first system block; without it /v1/messages answers 400.
+#   * The 7d_oi (overage-included) channel is only reported when the request
+#     is *for* that model -- a Haiku probe returns 5h/7d/overage only. Hence
+#     the Fable default for $PROBE_MODEL.
+#
+# Cost is 31 input + 1 output token per probe, which is why the caller caches.
+probe_usage() {
+  local resp body
+  HEADERS=''; HTTP_CODE=000; RETRY_AFTER=''
+  read_token || return 3
+  body=$(cat <<EOF
+{"model":"$PROBE_MODEL","max_tokens":1,
+ "system":[{"type":"text","text":"You are Claude Code, Anthropic's official CLI for Claude."}],
+ "messages":[{"role":"user","content":"."}]}
+EOF
+)
+  resp=$(curl -sS --max-time 15 -D - -o /dev/null -X POST "$MSG_URL" \
+           -H "Authorization: Bearer $TOKEN" \
+           -H 'anthropic-version: 2023-06-01' \
+           -H 'anthropic-beta: oauth-2025-04-20' \
+           -H 'content-type: application/json' \
+           -H "user-agent: $UA" \
+           --data-binary "$body" 2>/dev/null) || return 4
+  HEADERS="$resp"
+  HTTP_CODE=$(status_of "$HEADERS")
+  RETRY_AFTER=$(retry_after_of "$HEADERS")
+  [ "$HTTP_CODE" = "200" ] || return 5
+}
+
+# ── parsing ──────────────────────────────────────────────────────────────
+# Both parsers emit the same TSV: label \t pct_left \t reset_epoch \t period.
+# The period is the window length, used to roll an expired row forward while
+# rendering from cache -- see adjust_rows.
+
+# Header form. Channels are fixed (5h / 7d / 7d_oi / overage) and carry no
+# display name, so the labels live here rather than in the payload. `overage`
+# is deliberately dropped: it is the usage-credit balance, not a quota window,
+# and the endpoint path never showed it either.
+HEADERS_AWK='
+function emit(chan, label, period,   p) {
+  if (!(chan in u) || !(chan in r)) return
+  p = 100 - (u[chan] > 1 ? u[chan] : u[chan] * 100)
+  if (p < 0)   p = 0
+  if (p > 100) p = 100
+  printf "%s\t%.2f\t%d\t%d\n", label, p, r[chan], period
+}
+BEGIN { FS = "[ \t]*:[ \t]*" }
+{
+  gsub(/\r/, "")
+  k = tolower($1)
+  if (k !~ /^anthropic-ratelimit-unified-/) next
+  # anthropic-ratelimit-unified-<chan>-<field>: exactly five dashed parts.
+  # Skips -status, -representative-claim, -7d_oi-surpassed-threshold, etc.
+  if (split(k, q, "-") != 5) next
+  if      (q[5] == "utilization") u[q[4]] = $2 + 0
+  else if (q[5] == "reset")       r[q[4]] = $2 + 0
+}
+END {
+  emit("5h",    "5h",     18000)
+  emit("7d",    "wk",     604800)
+  emit("7d_oi", oilabel,  604800)
+}
+'
+
+# Endpoint form. The response shape is not a documented contract, so classify
+# structurally: collect every object carrying a reset timestamp plus a
+# utilization number, then bucket by its kind string.
+NORMALIZE_JQ='
+def num: if type == "number" then . else null end;
+
+# resets_at is ISO-8601 with fractional seconds and an explicit offset
+# ("2026-08-07T12:20:00.499402+00:00"), which fromdateiso8601 will not take.
+# Drop the fraction and normalise the offset to Z. Tolerate a bare number in
+# case the field ever changes shape.
+def epoch:
+  if type == "number" then .
+  elif type == "string" then
+    ( sub("\\.[0-9]+"; "") | sub("\\+00:00$"; "Z") | sub("([+-][0-9]{2}):([0-9]{2})$"; "Z")
+      | try fromdateiso8601 catch null )
+  else null end;
+
+def entries:
+  [ .. | objects
+    | (.resets_at // .reset_at // .resetsAt) as $r
+    | (.percent // .utilization // .used_percent) as $v
+    | select($r != null and ($v | num) != null and ($r | epoch) != null)
+    | { kind:  ((.kind // .type // .name // "") | tostring | ascii_downcase),
+        model: (try (.scope.model.display_name) catch null),
+        v:     ($v | num),
+        r:     ($r | epoch) } ];
+
+entries as $e
+# Utilization arrives as a 0..1 fraction on the header path; tolerate either.
+| (if (([$e[].v] | max) // 0) <= 1 then 100 else 1 end) as $mul
+| [ $e[] | . + { left: (100 - (.v * $mul)) } ] as $all
+| ( first($all[] | select(.kind | test("five_hour|5h|session|per_hour|hourly"))) // null ) as $five
+| ( first($all[] | select((.kind | test("seven_day|weekly|week|7d")) and (.model == null))) // null ) as $week
+| [ (if $five then ["5h", $five.left, $five.r, 18000] else empty end),
+    (if $week then ["wk", $week.left, $week.r, 604800] else empty end),
+    ( $all[] | select(.model != null)
+      | [ (.model | .[0:7] | sub("\\s+$";"")), .left, .r, 604800 ] ) ]
+| .[] | @tsv
+'
+
+# Sets ROWS. Error codes as above, plus 6 = fetched but nothing parseable.
+ROWS=''
+fetch_rows() {
+  local rc
+  ROWS=''
+  if [ "$SOURCE" = 'endpoint' ]; then
+    fetch_usage; rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
+    ROWS=$(printf '%s' "$BODY" | jq -r "$NORMALIZE_JQ" 2>/dev/null)
+  else
+    probe_usage; rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
+    ROWS=$(printf '%s' "$HEADERS" | awk -v oilabel="$OI_LABEL" "$HEADERS_AWK")
+  fi
+  [ -n "$ROWS" ] || return 6
+}
+
+# Worth another go? Transport blips, 429s and 5xx are transient; a 401 or a
+# response we cannot parse will look exactly the same next second.
+retryable() { # $1 = rc from fetch_rows
+  case "$1" in
+    4) return 0 ;;
+    5) case "$HTTP_CODE" in 429|5??) return 0 ;; esac; return 1 ;;
+  esac
+  return 1
+}
+
+# Retry-After wins when the server sends one -- it knows when the window
+# actually opens, and guessing shorter just burns another rejected request.
+# Anything longer than RETRY_MAX is not worth blocking a widget refresh for;
+# we give up, and the cooldown below keeps the next tick from re-asking early.
+backoff_delay() { # $1 = attempt number (1-based); echoes seconds, or nothing to give up
+  local d
+  if [ -n "$RETRY_AFTER" ] && [ "$RETRY_AFTER" -gt 0 ] 2>/dev/null; then
+    d="$RETRY_AFTER"
+  elif [ -n "$RETRY_AFTER" ]; then
+    d=1   # explicit "retry-after: 0" still needs a floor, or we hammer
+  else
+    d=$(( 2 ** $1 ))
+  fi
+  [ "$d" -gt "$RETRY_MAX" ] && return 1
+  printf '%s' "$d"
+}
+
+fetch_rows_retrying() {
+  local attempt=0 rc delay
+  while :; do
+    fetch_rows; rc=$?
+    [ "$rc" -eq 0 ] && return 0
+    retryable "$rc" || return "$rc"
+    attempt=$(( attempt + 1 ))
+    [ "$attempt" -gt "$RETRIES" ] && return "$rc"
+    delay=$(backoff_delay "$attempt") || {
+      printf 'HTTP %s asks for %ss, longer than the %ss cap; deferring to the next tick\n' \
+        "$HTTP_CODE" "${RETRY_AFTER:-?}" "$RETRY_MAX" >&2
+      return "$rc"
+    }
+    printf 'attempt %s failed (rc %s, HTTP %s); retrying in %ss\n' \
+      "$attempt" "$rc" "$HTTP_CODE" "$delay" >&2
+    sleep "$delay"
+  done
+}
+
+# ── cache ────────────────────────────────────────────────────────────────
+# Line 1 is the probe epoch; the rest are TSV rows. The file's own mtime is
+# the activity watermark claude_active() compares against, so write it whole.
+
+cache_stamp() {
+  local s=''
+  [ -f "$CACHE" ] && s=$(head -1 "$CACHE" 2>/dev/null | tr -cd '0-9')
+  printf '%s' "${s:-0}"
+}
+
+write_cache() { # $1 = rows
+  local dir tmp
+  dir=$(dirname "$CACHE")
+  mkdir -p "$dir" 2>/dev/null || return 1
+  tmp="$CACHE.$$"
+  { date +%s; printf '%s\n' "$1"; } > "$tmp" 2>/dev/null || return 1
+  mv -f "$tmp" "$CACHE" 2>/dev/null
+}
+
+read_cache() { [ -f "$CACHE" ] && tail -n +2 "$CACHE" 2>/dev/null; }
+
+# In-process retries cover a blip within one run. This covers the other case:
+# launchd firing us again 60s later into the same 429. Holds "<until>\t<fails>"
+# so repeated failures back off further each time, and is deleted on success.
+COOLDOWN="$CACHE.cooldown"
+
+cooldown_until() {
+  local v=''
+  [ -f "$COOLDOWN" ] && v=$(awk -F'\t' 'NR == 1 { print $1 + 0 }' "$COOLDOWN" 2>/dev/null)
+  printf '%s' "${v:-0}"
+}
+
+note_failure() {
+  local fails=0 delay now
+  [ -f "$COOLDOWN" ] && fails=$(awk -F'\t' 'NR == 1 { print $2 + 0 }' "$COOLDOWN" 2>/dev/null)
+  fails=$(( ${fails:-0} + 1 ))
+  if [ -n "$RETRY_AFTER" ] && [ "$RETRY_AFTER" -gt 0 ] 2>/dev/null; then
+    delay="$RETRY_AFTER"
+  else
+    delay=$(( MIN_AGE * (2 ** (fails - 1)) ))
+  fi
+  [ "$delay" -gt $(( MAX_AGE * 2 )) ] && delay=$(( MAX_AGE * 2 ))
+  now=$(date +%s)
+  mkdir -p "$(dirname "$COOLDOWN")" 2>/dev/null
+  printf '%s\t%s\n' "$(( now + delay ))" "$fails" > "$COOLDOWN" 2>/dev/null
+  printf 'backing off %ss before the next attempt (failure %s)\n' "$delay" "$fails" >&2
+}
+
+clear_cooldown() { rm -f "$COOLDOWN" 2>/dev/null; }
+
+# Has Claude Code written a transcript since the last probe? -print -quit stops
+# at the first hit, so this stays cheap however many sessions have piled up.
+# Unknowable (no transcript dir, no cache yet) counts as active: better to
+# probe than to sit on numbers we cannot date.
+claude_active() {
+  [ -d "$PROJ_DIR" ] || return 0
+  [ -f "$CACHE" ] || return 0
+  [ -n "$(find "$PROJ_DIR" -name '*.jsonl' -newer "$CACHE" -print -quit 2>/dev/null)" ]
+}
+
+# A window whose reset has passed is empty again, and we know that without
+# asking: roll it forward by whole periods and show it full. The next real
+# probe corrects any drift. Rows with period 0 are left alone.
+adjust_rows() {
+  awk -F'\t' -v now="$(date +%s)" 'BEGIN { OFS = "\t" }
+  {
+    pct = $2; rst = $3 + 0; per = $4 + 0
+    for (i = 0; per > 0 && rst <= now && i < 10000; i++) { rst += per; pct = 100 }
+    print $1, pct, rst, per
+  }'
+}
+
+# ── rendering ────────────────────────────────────────────────────────────
+colour_for() { # $1 = pct left (integer)
+  if   [ "$1" -gt 50 ]; then printf '%s' "$C_GREEN"
+  elif [ "$1" -gt 20 ]; then printf '%s' "$C_AMBER"
+  else                       printf '%s' "$C_RED"
+  fi
+}
+
+bar_for() { # $1 = pct left (integer), $2 = width
+  local filled=$(( ($1 * $2 + 50) / 100 )) i out=''
+  [ "$filled" -lt 0 ] && filled=0
+  [ "$filled" -gt "$2" ] && filled="$2"
+  for ((i = 0; i < filled; i++)); do out+='█'; done
+  for ((i = filled; i < $2; i++)); do out+='░'; done
+  printf '%s' "$out"
+}
+
+# Time alone if the reset falls today, weekday + time otherwise.
+#
+# Branches on calendar day, not elapsed seconds: an "< 86400s away" test
+# renders 01:00 tomorrow as a bare "01:00", indistinguishable from 01:00 today.
+reset_for() { # $1 = epoch seconds
+  local now today day
+  now=$(date +%s)
+  [ "$1" -le "$now" ] && { printf 'now'; return; }
+  today=$(date '+%Y%m%d')
+  day=$(date -r "$1" '+%Y%m%d')
+  if [ "$day" = "$today" ]; then
+    date -r "$1" '+%H:%M'
+  else
+    date -r "$1" '+%a %H:%M'
+  fi
+}
+
+# Turns normalized TSV on stdin into the ANSI text block for the widget.
+#
+# Two lines per limit, blank line between:
+#
+#   5h  20%              13:47     <- padded to bar width so reset right-aligns
+#   ████░░░░░░░░░░░░░░░░░░░░
+#
+# One line per limit does not fit the medium widget -- it soft-wraps mid-row
+# and the percentage lands under the bar, which is what made it look busy.
+render() {
+  local label left reset period pct
+  local -a labels=() pcts=() resets=()
+
+  while IFS=$'\t' read -r label left reset period; do
+    [ -n "$label" ] || continue
+    pct=$(printf '%.0f' "$left" 2>/dev/null) || pct=0
+    [ "$pct" -lt 0 ] && pct=0
+    [ "$pct" -gt 100 ] && pct=100
+    labels+=("$label"); pcts+=("$pct"); resets+=("$reset")
+  done
+
+  local i head tail pad colour first=1
+  for i in "${!labels[@]}"; do
+    [ "$first" -eq 1 ] || printf '\n'
+    first=0
+    colour=$(colour_for "${pcts[i]}")
+    # %-8s clears the widest label a 7-char truncation can yield ("Fable 5").
+    head=$(printf '%-8s%s%%' "${labels[i]}" "${pcts[i]}")
+    tail=$(reset_for "${resets[i]}")
+    pad=$(( BAR_WIDTH - ${#head} - ${#tail} ))
+    [ "$pad" -lt 1 ] && pad=1
+    printf '%s%s%s%*s%s%s%s\n' \
+      "$colour" "$head" "$C_OFF" "$pad" '' "$C_DIM" "$tail" "$C_OFF"
+    printf '%s%s%s\n' "$colour" "$(bar_for "${pcts[i]}" "$BAR_WIDTH")" "$C_OFF"
+  done
+}
+
+push() { # stdin = text block
+  terminal-widget --target "$TARGET" \
+    --title 'Claude usage' --title-alignment left \
+    --text - --ansi-mode on \
+    --font "$FONT" --font-size "$FONT_SIZE" \
+    --background-mode >/dev/null
+}
+
+push_error() { # $1 = short message
+  printf '%s⚠ %s%s\n' "$C_RED" "$1" "$C_OFF" | push
+}
+
+report_failure() { # $1 = rc from fetch_rows
+  case "$1" in
+    3) push_error 'no Claude Code credentials'
+       printf 'no OAuth access token: %s\n' "${TOKEN_ERR:-unknown}" >&2 ;;
+    4) push_error 'network unreachable' ;;
+    6) push_error 'unrecognized API response'
+       printf 'parsed no limit rows; re-run with --dump to inspect the payload\n' >&2 ;;
+    *) case "$HTTP_CODE" in
+         401|403) push_error 'token expired — run claude' ;;
+         429)     push_error 'rate limited — backing off' ;;
+         *)       push_error "API error $HTTP_CODE" ;;
+       esac
+       printf 'HTTP %s from the %s source\n' "$HTTP_CODE" "$SOURCE" >&2 ;;
+  esac
+}
+
+# Fails rather than pushing a blank widget when there is nothing cached yet.
+render_cache() {
+  local rows
+  rows=$(read_cache | adjust_rows)
+  [ -n "$rows" ] || return 1
+  printf '%s\n' "$rows" | render | push
+}
+
+update_once() {
+  local now stamp age hold rc need=0 blocked=0
+  now=$(date +%s)
+  stamp=$(cache_stamp)
+  age=$(( now - stamp ))
+
+  if   [ "$FORCE" -eq 1 ] || [ "$stamp" -eq 0 ]; then need=1
+  elif [ "$age" -ge "$MAX_AGE" ];                 then need=1
+  elif [ "$age" -ge "$MIN_AGE" ] && claude_active; then need=1
+  fi
+
+  # An active backoff outranks all of that -- except --force, which is the
+  # user asking on purpose.
+  hold=$(cooldown_until)
+  if [ "$need" -eq 1 ] && [ "$FORCE" -eq 0 ] && [ "$now" -lt "$hold" ]; then
+    printf 'in backoff for another %ss; skipping this refresh\n' "$(( hold - now ))" >&2
+    need=0; blocked=1
+  fi
+
+  if [ "$need" -eq 1 ]; then
+    fetch_rows_retrying; rc=$?
+    if [ "$rc" -eq 0 ]; then
+      clear_cooldown
+      write_cache "$ROWS"
+    else
+      note_failure
+      # A transient failure should not blank a widget that has good numbers,
+      # but it must not sit on them forever either -- past twice MAX_AGE the
+      # cache stops being evidence of anything and the error takes over.
+      if [ "$age" -lt $(( MAX_AGE * 2 )) ] && render_cache; then
+        printf 'refresh failed (rc %s), showing cache from %ss ago\n' "$rc" "$age" >&2
+      else
+        report_failure "$rc"
+      fi
+      return 1
+    fi
+  fi
+
+  # Nothing cached and nothing fetched: say so rather than push an empty box.
+  render_cache && return 0
+  if [ "$blocked" -eq 1 ]; then
+    push_error 'rate limited — backing off'
+  else
+    push_error 'no usage data yet'
+  fi
+  return 1
+}
+
+if [ "$DEMO" -eq 1 ]; then
+  now=$(date +%s)
+  # Third row stands in for the 7d_oi channel; its label is $CUW_OI_LABEL.
+  block=$(printf '5h\t20\t%s\t18000\nwk\t30\t%s\t604800\n%s\t58\t%s\t604800\n' \
+            "$((now + 1020))" "$((now + 240000))" "$OI_LABEL" "$((now + 240000))" | render)
+  printf '%s\n' "$block"
+  printf '%s\n' "$block" | push
+  printf '\npushed demo to widget %s\n' "$TARGET" >&2
+  exit 0
+fi
+
+if [ "$DUMP" -eq 1 ]; then
+  # Parses whatever the single fetch returned -- calling fetch_rows here would
+  # spend a second request just to print it.
+  if [ "$SOURCE" = 'endpoint' ]; then
+    fetch_usage; rc=$?
+    [ "$rc" -eq 3 ] && { printf 'no OAuth access token: %s\n' "${TOKEN_ERR:-unknown}" >&2; exit 1; }
+    printf 'HTTP %s\n' "$HTTP_CODE" >&2
+    printf '%s\n' "$BODY" | jq . 2>/dev/null || printf '%s\n' "$BODY"
+    ROWS=$(printf '%s' "$BODY" | jq -r "$NORMALIZE_JQ" 2>/dev/null)
+  else
+    probe_usage; rc=$?
+    [ "$rc" -eq 3 ] && { printf 'no OAuth access token: %s\n' "${TOKEN_ERR:-unknown}" >&2; exit 1; }
+    printf 'HTTP %s (probe model %s)\n' "$HTTP_CODE" "$PROBE_MODEL" >&2
+    printf '%s' "$HEADERS" | tr -d '\r' | grep -iE '^anthropic-ratelimit' || printf '(no rate-limit headers)\n'
+    ROWS=$(printf '%s' "$HEADERS" | awk -v oilabel="$OI_LABEL" "$HEADERS_AWK")
+  fi
+  printf '\n--- normalized (label / pct left / reset epoch / period) ---\n' >&2
+  printf '%s\n' "$ROWS" | adjust_rows | sed 's/^/  /' >&2
+  exit 0
+fi
+
+if [ "$WATCH" -eq 1 ]; then
+  printf 'polling every %ss (source %s) -> widget %s (ctrl-c to stop)\n' \
+    "$INTERVAL" "$SOURCE" "$TARGET" >&2
+  trap 'exit 0' INT TERM
+  while :; do
+    update_once || true
+    FORCE=0   # --force applies to the first pass only
+    sleep "$INTERVAL"
+  done
+fi
+
+update_once

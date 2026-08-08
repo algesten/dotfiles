@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.lookback.claude-usage-widget</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/martin/bin/claude-usage-widget</string>
+        <string>--once</string>
+    </array>
+
+    <!-- One-shot every 60s. Preferred over a long-lived --watch loop: no
+         process to leak, and launchd restarts it after sleep/reboot.
+
+         60s is the *render* cadence, not the API cadence -- the script caches
+         and only re-probes on real Claude Code activity (CUW_MIN_AGE /
+         CUW_MAX_AGE), so most ticks are a ~70ms redraw off disk. -->
+    <key>StartInterval</key>
+    <integer>60</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/martin/Library/Logs/claude-usage-widget.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/martin/bin</string>
+    </dict>
+</dict>
+</plist>
