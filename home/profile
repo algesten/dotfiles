@@ -152,3 +152,8 @@ export MACOS_SIGNING_KEY="Developer ID Application: Taglab Consulting S.L. (JUB9
 alias cxlow="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"low\"'"
 alias cxmid="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"medium\"'"
 alias cxmax="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"max\"'"
+
+nix() {
+  env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH \
+      /nix/var/nix/profiles/default/bin/nix "$@"
+}
