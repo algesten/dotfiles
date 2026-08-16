@@ -1,7 +1,11 @@
 ---
 name: worktree-pr
-description: "PR-based workflow using a nested git worktree under .wt/. All work lands via squash-merged PRs from a per-branch worktree; the main folder stays parked on main. Use when starting, iterating on, or merging a PR in a repo that follows this convention."
+description: "Explicitly requested PR-based workflow using a nested git worktree under .wt/. All work lands via squash-merged PRs from a per-branch worktree; the main folder stays parked on main. Use only when the user asks to use the worktree-pr workflow at the outset of a change; never activate it retroactively for work already started on main."
 ---
+
+## Activation boundary
+
+Use this workflow only when the user explicitly asks for `worktree-pr` at the outset, before the change begins. Do not activate it merely because the repository follows this convention or because the user later asks to commit or push. If a change started on `main` and the user later asks to commit or push it, stay on `main` and perform that request there; do not move the change into a worktree or retroactively open a PR unless the user explicitly changes direction.
 
 ## When to use
 
