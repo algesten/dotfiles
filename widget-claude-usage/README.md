@@ -17,6 +17,11 @@ Fable   58%    Mon 08:24
 Bars show **remaining**, coloured green (>50%) → amber (>20%) → red, with the
 window reset time dimmed on the right.
 
+The panel is pinned to a dark theme — warm `#3A2A22` on `#F2E9E4`, sharing the
+palette (but not the navy background) of
+[widget-codex-usage](../widget-codex-usage) so the two read as a set while
+staying tellable apart. Override with `CUW_BACKGROUND` / `CUW_FOREGROUND`.
+
 ## Install
 
 Requires `curl`, `jq`, and `terminal-widget` (`brew install --cask terminal-widget`,
@@ -85,7 +90,8 @@ claude-usage-widget [--once|--watch [SECS]|--demo|--dump] [options]
 | `--bar-width N` | Bar cells (default 24) |
 
 Env equivalents: `CUW_TARGET`, `CUW_INTERVAL`, `CUW_BAR_WIDTH`, `CUW_FONT`,
-`CUW_FONT_SIZE`, `CUW_SOURCE`. Tune without editing the script:
+`CUW_FONT_SIZE`, `CUW_SOURCE`, `CUW_BACKGROUND`, `CUW_FOREGROUND`. Tune without
+editing the script:
 
 ```sh
 CUW_BAR_WIDTH=20 CUW_FONT_SIZE=11 claude-usage-widget --demo

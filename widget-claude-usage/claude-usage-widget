@@ -20,6 +20,8 @@ INTERVAL="${CUW_INTERVAL:-60}"
 BAR_WIDTH="${CUW_BAR_WIDTH:-24}"
 FONT="${CUW_FONT:-Menlo}"
 FONT_SIZE="${CUW_FONT_SIZE:-12}"
+BACKGROUND="${CUW_BACKGROUND:-#3A2A22}"
+FOREGROUND="${CUW_FOREGROUND:-#F2E9E4}"
 SOURCE="${CUW_SOURCE:-probe}"
 CACHE="${CUW_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/claude-usage-widget/state}"
 MIN_AGE="${CUW_MIN_AGE:-120}"     # never re-probe more often than this
@@ -38,11 +40,12 @@ USAGE_URL="${CUW_USAGE_URL:-https://api.anthropic.com/api/oauth/usage}"
 MSG_URL="${CUW_MSG_URL:-https://api.anthropic.com/v1/messages}"
 UA='claude-cli/2.1.224 (external, cli)'
 
-# Truecolor, matched to the widget's dark/light neutral background.
-C_GREEN=$'\033[38;2;122;193;132m'
-C_AMBER=$'\033[38;2;226;178;92m'
-C_RED=$'\033[38;2;226;122;115m'
-C_DIM=$'\033[38;2;150;150;150m'
+# Truecolor, matched to the pinned dark background. Same palette as
+# widget-codex-usage so the two widgets read as one set.
+C_GREEN=$'\033[38;2;127;203;145m'
+C_AMBER=$'\033[38;2;235;203;139m'
+C_RED=$'\033[38;2;191;97;106m'
+C_DIM=$'\033[38;2;139;144;152m'
 C_OFF=$'\033[0m'
 
 usage() {
@@ -494,6 +497,8 @@ push() { # stdin = text block
     --title 'Claude usage' --title-alignment left \
     --text - --ansi-mode on \
     --font "$FONT" --font-size "$FONT_SIZE" \
+    --theme dark --background "$BACKGROUND" \
+    --foreground "$FOREGROUND" --title-color "$FOREGROUND" \
     --background-mode >/dev/null
 }
 
