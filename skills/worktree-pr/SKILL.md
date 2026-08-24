@@ -9,7 +9,7 @@ Use this workflow only when the user explicitly asks for `worktree-pr` at the ou
 
 ## When to use
 
-A repo where direct pushes to `origin/main` are out and **all work lands via squash-merged PRs**, each developed in its own nested worktree under `.wt/`. Multiple agents may have PRs open in parallel, so the main checkout must stay on `main` and never get `git checkout`'d out from under them. Where CI is configured to cancel superseded runs (a new push to a branch interrupts the older run), the cadence is rapid iterate-and-push rather than push-and-wait.
+A repo where direct pushes to `origin/main` are out and **all work lands via squash-merged PRs**, each developed in its own nested worktree under `.wt/`. Multiple agents may have PRs open in parallel, so the main checkout must stay on `main` and never get `git checkout`'d out from under them. CI does not run on every push: a branch run is requested explicitly at a ready point after local verification (see "CI request policy"), and `main` is checked on a catch-up schedule, so the cadence is iterate locally, push freely, request CI rarely.
 
 ## Path conventions
 
@@ -22,15 +22,36 @@ A repo where direct pushes to `origin/main` are out and **all work lands via squ
 
 Substitute your own paths — never hard-code anyone else's.
 
-## CI status commands
+## CI model: request-only branches, scheduled main
 
-The steps below check CI with the standard `gh` CLI, which works on any GitHub repo:
+Detect which model the repo uses by reading its workflow file(s) under `.github/workflows/` once at the start (`grep -l workflow_dispatch`, and whether `pull_request:` is a trigger).
 
-- **Check a PR's checks once:** `gh pr checks <pr#>`
-- **Watch until they finish:** `gh pr checks <pr#> --watch`
-- **Check a branch's latest run:** `gh run list --branch <branch> --limit 1`
+- **Request-only** (no `pull_request` trigger; `workflow_dispatch` present; `main` runs on a schedule): nothing runs on push. A branch run happens only when you ask for it. This is the model the steps below assume.
+- **Automatic** (`pull_request` trigger): every push runs CI; the "request a run" steps below collapse to "push", and the watcher is `gh pr checks <pr#> --watch`.
 
-If the project ships its own richer CI helper that can inspect GitHub check failures or watch PR CI, prefer it where noted — but the `gh` commands are the portable baseline.
+Commands for the request-only model:
+
+```sh
+cd <wt> && gh workflow run <workflow-file> --ref <branch>          # request a run on the pushed head
+sleep 10 && gh run list --branch <branch> --workflow <workflow-file> --limit 1 --json databaseId,status,headSha
+gh run watch <run-id> --exit-status                                 # watch it (background worker)
+gh run view <run-id> --log-failed                                   # diagnose a red run
+gh run list --branch main --workflow <workflow-file> --limit 1     # main's latest run
+```
+
+Dispatched runs attach to the head SHA, so they also appear in `gh pr checks <pr#>` once a PR exists. Confirm the run's `headSha` matches what you pushed — a dispatch races a push that has not landed yet.
+
+If the project ships its own richer CI helper that can request or watch runs, prefer it — the `gh` commands are the portable baseline.
+
+## CI request policy — confident, proportionate, rare
+
+A CI run costs real money and queue time (macOS and other large runners are metered at a multiple), so requests are deliberate:
+
+1. **Earn reasonable confidence locally first.** Before requesting a run, run the local equivalents of the CI steps the change can actually break. Read the workflow once to know what those steps are (formatting, lint with warnings denied, the affected tests, repo guard scripts, shell syntax, a cross-target `cargo check`). Capture real exit codes. A request is a statement that you expect green.
+2. **Proportionate, not exhaustive.** Do not run every large, slow check locally for every small change. Pick the checks by blast radius: a docs/comment change needs the guard script that asserts doc contents (if any) and nothing else; a one-crate Rust change needs fmt, clippy and that crate's tests, not a full cross-compile of every platform; a workflow/script/build change is the case that needs the broad local pass and the CI run itself.
+3. **At most two requests per PR, never per push.** Request once when the PR is ready for user review, and once after the pre-merge rebase — skip the second when the rebase was a no-op on top of the already-green head (same tree, nothing landed on `main` in between). Iterating on review feedback does not re-request until the next ready point.
+4. **Skip the request when CI cannot learn anything.** A change whose every CI-visible effect was verified locally (pure docs/comments with the guard script run, a trivially mechanical rename with tests run) needs no branch run; say so in the ready message. `main`'s scheduled run remains the backstop after merge.
+5. **Red run → fix locally, then re-request.** Reproduce the failing step locally, fix, verify that step passes, push, request again. Do not push-and-request speculatively.
 
 ## Gitignoring `.wt`
 
@@ -74,10 +95,10 @@ If no suitable local worktree exists, create one using the workflow below. Avoid
 
 ```sh
 git -C <main-folder> pull --ff-only origin main
-gh run list --branch main --limit 1     # confirm main's CI is green
+gh run list --branch main --limit 1     # confirm main's last run is green
 ```
 
-The pull keeps the main folder current so Read ops reflect latest; `--ff-only` flags drift if the main folder somehow isn't on `main` or carries local commits — investigate before forcing. The CI check avoids burying an unrelated regression in your PR's CI run: green or in-progress is fine; red warrants a pause and a flag to the user before continuing.
+The pull keeps the main folder current so Read ops reflect latest; `--ff-only` flags drift if the main folder somehow isn't on `main` or carries local commits — investigate before forcing. The CI check avoids burying an unrelated regression in your PR's CI run: green, in-progress, or a skipped catch-up run ("no change since last run") is fine; red warrants a pause and a flag to the user before continuing. Under the scheduled model main's latest run may be up to one schedule window behind the newest commit; that is expected.
 
 ### 2. Create the worktree (stay launched from the main folder)
 
@@ -122,24 +143,25 @@ For takeover PRs, your commits may be additional tweaks on top of someone else's
 
 ### 3. Iterate
 
-Commit → push → check CI:
+Commit → verify locally → push. Pushing does not start CI:
 
 ```sh
 git -C <wt> push origin <branch>
-cd <wt> && gh pr checks <pr#>
 ```
 
 For takeover PRs whose local `<branch>` differs from `<head-ref>`, substitute the push target with `git -C <wt> push origin <branch>:<head-ref>` for same-repo PRs, or `git -C <wt> push <head-remote> <branch>:<head-ref>` for fork PRs, so the existing PR updates in place.
 
-**Do NOT wait on CI (`--watch`) during iteration.** If `gh pr checks` shows a visible failure while CI is still running on later steps, fix and push immediately — the new push cancels the old run, so waiting is wasted.
+**Do not request CI during iteration.** Local checks are the feedback loop while the change is moving; a CI run on a head you are about to replace is wasted money.
 
-After the final push for an iteration — when you believe the PR is ready for user review or the latest requested fixes are complete — start a GitHub CI watcher in the background so you get notified immediately while staying available to the user:
+After the final push for an iteration — when you believe the PR is ready for user review or the latest requested fixes are complete — apply the CI request policy: run the proportionate local checks, then, if the change can affect anything CI checks beyond what you verified, request one run and watch it in a background worker so you get notified while staying available to the user:
 
 ```sh
-cd <wt> && gh pr checks <pr#> --watch
+cd <wt> && gh workflow run <workflow-file> --ref <branch>
+sleep 10 && gh run list --branch <branch> --workflow <workflow-file> --limit 1 --json databaseId,headSha
+gh run watch <run-id> --exit-status        # background worker
 ```
 
-Use a background worker/session for that watcher. If it reports a failure, stop the watcher if needed, diagnose from the GitHub check output and failing logs, fix, commit, push, and start a fresh background watcher for the new head. If the project has a richer CI helper, use it instead of `gh pr checks <pr#> --watch`.
+If it reports a failure, diagnose with `gh run view <run-id> --log-failed`, reproduce and fix locally, commit, push, and request a fresh run for the new head. If the change needed no CI run, say which local checks stood in for it in the ready message. If the project has a richer CI helper, use it instead of the `gh` commands.
 
 First push for new PRs: `cd <wt> && gh pr create` with a **Summary** body only — no Test plan section, no generated-by or co-author attribution lines, and **no follow-up / deferred-work / "next PR" / "known limitation" notes** (see the body-is-the-commit-message guardrail below). The body becomes the squash commit message verbatim. Subsequent pushes update the existing PR — no re-create needed. Takeover PRs already have a PR; push to the existing head branch instead of creating a replacement PR.
 
@@ -153,20 +175,20 @@ Standing authorization: commit and push to feature branches freely as work lands
 
 "Merge this" authorizes the **whole loop**, not a single pass. No "should I proceed?" pauses between steps 6–10. Keep going until `gh pr view <pr#> --json state` reports `MERGED`. The loop is not linear: any of these sends you back to an earlier step, and that's expected, not a reason to stop and ask —
 
-- **CI goes red** (step 8) → fix, push, relaunch the watcher.
-- **Another PR lands on `main` while you were watching CI or auditing** → your branch is now behind. Re-rebase (back to step 6), force-push, re-watch. Other agents merging in parallel makes this normal.
+- **CI goes red** (step 8) → reproduce and fix locally, push, request a fresh run, relaunch the watcher.
+- **Another PR lands on `main` while you were watching CI or auditing** → your branch is now behind. Re-rebase (back to step 6), force-push, re-request, re-watch. Other agents merging in parallel makes this normal.
 - **The merge is rejected** (step 9) because the branch is out of date, has conflicts, or isn't mergeable → resolve (rebase again from step 6, fix conflicts), then retry the merge.
 
 Only stop early for something you genuinely can't resolve autonomously — a conflict whose resolution is a real design decision, or repeated CI failures you can't diagnose. Otherwise the exit condition is a confirmed clean squash-merge, full stop.
 
-### 6. Rebase onto latest `origin/main` and kick off the CI watcher
+### 6. Rebase onto latest `origin/main` and request the pre-merge run
 
 ```sh
 git -C <wt> fetch origin && git -C <wt> rebase origin/main
 git -C <wt> push --force-with-lease origin <branch>
 ```
 
-For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <wt> push --force-with-lease origin <branch>:<head-ref>` for same-repo PRs, or `git -C <wt> push --force-with-lease <head-remote> <branch>:<head-ref>` for fork PRs. Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, launch a GitHub CI watcher as a background worker** (`cd <wt> && gh pr checks <pr#> --watch`, or a richer project CI helper when available) — don't sit idle; the next step does useful work in parallel.
+For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <wt> push --force-with-lease origin <branch>:<head-ref>` for same-repo PRs, or `git -C <wt> push --force-with-lease <head-remote> <branch>:<head-ref>` for fork PRs. Force-push to a PR branch after rebase is part of the standing authorization; **force-push to `main` itself remains off-limits.** Other agents' PRs may have landed since you opened this one, so rebase is mandatory, not conditional. **Right after the force-push, decide whether the pre-merge run is needed:** if the rebase was a no-op on the head that already ran green (nothing landed on `main` since, tree unchanged), reuse that result and skip; otherwise request a run (`gh workflow run <workflow-file> --ref <branch>`) and launch `gh run watch <run-id> --exit-status` as a background worker — don't sit idle; the next step does useful work in parallel. A rebase that only replays onto unrelated `main` commits still counts as a new head: the combination has not been tested.
 
 ### 7. Audit the PR description (in parallel with the step-6 watcher)
 
@@ -185,21 +207,21 @@ If `<main-folder>/CHANGELOG.md` exists, ensure the PR includes an appropriate ch
 - The entry must describe the user-visible change from the whole PR, not merely your additional tweaks on a takeover PR.
 - If the PR is not user-visible and the changelog has a clear convention for skipping such entries, follow that convention; otherwise ask before omitting it.
 
-Commit and push any changelog correction, then relaunch the CI watcher because the branch head changed.
+Commit and push any changelog correction; a changelog-only head needs no new CI request beyond the local guard checks, unless the project's CI asserts changelog contents.
 
 ### 8. Await the CI watcher's notification
 
-Kicked off in step 6, ran in parallel with the step-7 audit. If green, proceed; if red, fix + push, relaunch the watcher.
+Kicked off in step 6 (or reused from the ready-point run), ran in parallel with the step-7 audit. If green, proceed; if red, reproduce and fix locally, push, request a fresh run, relaunch the watcher.
 
 ### 9. Merge
 
 ```sh
-cd <wt> && gh pr merge --squash <pr#>     # or --squash --auto if CI was still completing
+cd <wt> && gh pr merge --squash <pr#>     # or --squash --auto if a requested run was still completing
 ```
 
-If the merge is **rejected** — "not mergeable", "base branch was modified", conflicts — your branch went stale again; loop back to step 6 (rebase, force-push, re-watch CI) and retry. Don't escalate a stale-branch rejection to the user; resolving it is part of the merge mandate.
+If the merge is **rejected** — "not mergeable", "base branch was modified", conflicts — your branch went stale again; loop back to step 6 (rebase, force-push, re-request CI if the head changed) and retry. Don't escalate a stale-branch rejection to the user; resolving it is part of the merge mandate.
 
-On success: the repo's `delete_branch_on_merge` removes the remote branch automatically; the local branch survives because it's checked out in the worktree (step 10 cleans it up). Verify MERGED: `gh pr view <pr#> --json state`. **Don't gate on post-merge CI for the squash commit on `main`** — once merged, merged; if main turns red after, that's a separate fix-forward.
+On success: the repo's `delete_branch_on_merge` removes the remote branch automatically; the local branch survives because it's checked out in the worktree (step 10 cleans it up). Verify MERGED: `gh pr view <pr#> --json state`. **Don't gate on post-merge CI for the squash commit on `main`** — once merged, merged; main's scheduled catch-up run covers it, and if that turns red it's a separate fix-forward.
 
 ### 10. Clean up
 
