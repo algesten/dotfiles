@@ -28,7 +28,7 @@ Requires `curl`, `jq`, and `terminal-widget` (`brew install --cask terminal-widg
 or [download](https://brettterpstra.com/projects/terminal-widget/)).
 
 ```sh
-ln -s ~/dev/lk/jot/martin/widget-claude-usage/claude-usage-widget ~/bin/claude-usage-widget
+ln -s ~/dev/dotfiles/widget-claude-usage/claude-usage-widget ~/bin/claude-usage-widget
 ```
 
 Place the widget — **use Notification Center, not the Desktop** (see Gotchas):
@@ -49,7 +49,7 @@ Then run it for real, and once the numbers look right, install the timer:
 claude-usage-widget --dump          # verify the API parse
 claude-usage-widget                 # one real update
 
-cp ~/dev/lk/jot/martin/widget-claude-usage/io.lookback.claude-usage-widget.plist \
+cp ~/dev/dotfiles/widget-claude-usage/io.lookback.claude-usage-widget.plist \
    ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.lookback.claude-usage-widget.plist
 ```

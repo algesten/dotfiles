@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Cycle"
+  short_description: "Iterate adversarial PR reviews and fixes to convergence."
+  default_prompt: "Run the review-cycle skill on the current pull request: use a fresh adversarial reviewer each round, preserve reproducing regression tests, fix validated findings, and repeat until an independent clean review and passing validation."
