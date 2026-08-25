@@ -196,7 +196,9 @@ For takeover PRs whose local `<branch>` differs from `<head-ref>`, use `git -C <
 cd <wt> && gh pr view <pr#> --json title,body
 ```
 
-The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body become the squash commit message verbatim — write the body to read as the final commit message: just a Summary section, no Test plan, no generated-by or co-author attribution lines, and **no follow-up / deferred / "next PR" notes** (see the guardrail below). If a forward-pointer crept into the body during iteration, strip it now — this audit is the last chance before it becomes permanent history.
+The PR's scope may have drifted. Update title + body via `gh api -X PATCH repos/.../pulls/<pr#>` (or `gh pr edit` if it works — the GraphQL projects-classic deprecation sometimes breaks the latter) so they describe **what the squashed commit will contain**, not the chronological journey. For takeover PRs, this means describing the **entire PR**, including the original author's changes and your later fixes, not just the additional tweaks you made. Title + body form the descriptive portion of the squash commit message — write the body as just a Summary section, with no Test plan, generated-by lines, co-author attribution lines, or **follow-up / deferred / "next PR" notes** (see the guardrail below). If a forward-pointer or attribution trailer crept into the body during iteration, strip it now — the merge step appends the audited attribution block.
+
+Before merging, inspect every commit in `origin/main..HEAD` and collect its `Co-Authored-By:` trailers. Build the final squash-commit body from the audited PR body, followed by one blank line and the deduplicated trailers at the very bottom. Treat trailers with the same email address case-insensitively as the same attributor, retain one canonical spelling for each, and preserve each distinct attributor exactly once. Remove duplicate or misplaced copies rather than allowing GitHub's generated squash message to repeat them.
 
 ### 7b. Audit `CHANGELOG.md` when present
 
@@ -215,11 +217,16 @@ Kicked off in step 6 (or reused from the ready-point run), ran in parallel with 
 
 ### 9. Merge
 
+Use the audited PR title as `<final-subject>` and the step-7 body plus its deduplicated attribution block as `<final-body>`, then pass both explicitly so GitHub cannot synthesize repeated trailers from the individual commits:
+
 ```sh
-cd <wt> && gh pr merge --squash <pr#>     # or --squash --auto if a requested run was still completing
+cd <wt> && gh pr merge --squash <pr#> --subject <final-subject> --body <final-body>
+# Add --auto if CI is still completing.
 ```
 
-If the merge is **rejected** — "not mergeable", "base branch was modified", conflicts — your branch went stale again; loop back to step 6 (rebase, force-push, re-request CI if the head changed) and retry. Don't escalate a stale-branch rejection to the user; resolving it is part of the merge mandate.
+Immediately before running the merge, verify that `<final-body>` contains each unique `Co-Authored-By:` attributor exactly once and that all such trailers are contiguous at the bottom, after a blank line.
+
+If the merge is **rejected** — "not mergeable", "base branch was modified", conflicts — your branch went stale again; loop back to step 6 (rebase, force-push, re-request CI if the head changed, and re-watch it) and retry. Don't escalate a stale-branch rejection to the user; resolving it is part of the merge mandate.
 
 On success: the repo's `delete_branch_on_merge` removes the remote branch automatically; the local branch survives because it's checked out in the worktree (step 10 cleans it up). Verify MERGED: `gh pr view <pr#> --json state`. **Don't gate on post-merge CI for the squash commit on `main`** — once merged, merged; main's scheduled catch-up run covers it, and if that turns red it's a separate fix-forward.
 
@@ -246,7 +253,7 @@ If the main folder is dirty, do not pull over local changes; report that the fin
 
 ## Guardrails
 
-- **The PR body IS the commit message — it states only what the change is, never what comes next.** Squash-merge uses the title + body verbatim as the permanent commit message on `main`. So the body must contain *only* a description of the change that landed: no "Known follow-up", "next PR", "deferred to a later PR", "known limitation", "TODO", or any other forward-pointer — not even a single sentence. Those read fine in a GitHub PR but are wrong in `git log` forever. Deferred/follow-up work goes where the project tracks it (a STATUS-style doc, an issue, a backlog) — **never** the PR body. This trap is one-way: once squashed, the only way to remove the note is `git commit --amend` + **force-push to `main`, which is off-limits** — so it can't be cleanly undone. Catch it at write time (step 3) and again at the pre-merge audit (step 7). If you have a genuine follow-up to record, mention it to the user in chat and/or add it to the tracker; keep it out of the commit message.
+- **The PR body is the descriptive portion of the commit message — it states only what the change is, never what comes next.** At merge time, step 9 appends only the deduplicated `Co-Authored-By:` block. The body itself must contain *only* a description of the change that landed: no attribution trailers, "Known follow-up", "next PR", "deferred to a later PR", "known limitation", "TODO", or any other forward-pointer — not even a single sentence. Those read fine in a GitHub PR but are wrong in `git log` forever. Deferred/follow-up work goes where the project tracks it (a STATUS-style doc, an issue, a backlog) — **never** the PR body. This trap is one-way: once squashed, the only way to remove the note is `git commit --amend` + **force-push to `main`, which is off-limits** — so it can't be cleanly undone. Catch it at write time (step 3) and again at the pre-merge audit (step 7). If you have a genuine follow-up to record, mention it to the user in chat and/or add it to the tracker; keep it out of the commit message.
 - **Don't unilaterally defer agreed scope.** Once a PR's scope is agreed, never mid-implementation decide a piece is "too much for this PR," mark it a follow-up, and call the PR ready — ask first. "Fully implemented" means it **runs end-to-end on the target surface**, not "it compiles." A `What's deferred to follow-up PRs` section requires explicit user authorization for each item.
 - **Surface quality red flags as a question before opening the PR**, not as a buried follow-up.
 - **Capture real exit codes** — never pipe a build/test you're judging into `tail`/`head`/`grep`; the pipeline's status is the last stage's. Redirect to a file and check `$?`.

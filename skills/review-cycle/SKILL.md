@@ -49,6 +49,8 @@ Wait for the reviewer to finish. Inspect every finding and any test commit rathe
 
 Fix all validated findings in production code. Run the new regression tests first, then the relevant broader test, lint, type-check, and build commands. Commit and push the fixes to the same PR.
 
+After pushing, reply to every originating GitHub review comment or PR comment with the finding's disposition. For a fix, include the fix commit and relevant validation result; for a rejected finding, briefly explain the evidence. Reply in the existing thread rather than starting a duplicate discussion. Do not resolve review conversations—the reviewer or human owner decides when a thread is resolved.
+
 Do not stop merely because the reported tests now pass. The next reviewer must inspect the entire updated PR for incomplete fixes and regressions introduced by the repair.
 
 ### 4. Start the next round
