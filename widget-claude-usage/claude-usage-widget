@@ -494,7 +494,7 @@ render() {
 
 push() { # stdin = text block
   terminal-widget --target "$TARGET" \
-    --title 'Claude usage' --title-alignment left \
+    --title 'CLAUDE USAGE' --title-alignment left \
     --text - --ansi-mode on \
     --font "$FONT" --font-size "$FONT_SIZE" \
     --theme dark --background "$BACKGROUND" \

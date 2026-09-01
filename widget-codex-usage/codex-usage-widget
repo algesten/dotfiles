@@ -266,7 +266,7 @@ render() {
 
 push() {
   terminal-widget --target "$TARGET" \
-    --title 'Codex usage' --title-alignment left \
+    --title 'CODEX USAGE' --title-alignment left \
     --text - --ansi-mode on \
     --font "$FONT" --font-size "$FONT_SIZE" \
     --theme dark --background "$BACKGROUND" \

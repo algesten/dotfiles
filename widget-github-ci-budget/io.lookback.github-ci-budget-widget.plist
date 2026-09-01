@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:/Users/martin/bin:/Users/martin/.local/bin</string>
+		<key>GCB_ACCOUNT</key>
+		<string>algesten</string>
+		<key>GCB_BUDGET</key>
+		<string>20.00</string>
+		<key>GCB_INCLUDED</key>
+		<string>18.00</string>
+		<key>GCB_REPOSITORY</key>
+		<string>podocle</string>
+	</dict>
+	<key>Label</key>
+	<string>io.lookback.github-ci-budget-widget</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/martin/bin/github-ci-budget-widget</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/martin/Library/Logs/github-ci-budget-widget.log</string>
+	<key>StartInterval</key>
+	<integer>300</integer>
+</dict>
+</plist>

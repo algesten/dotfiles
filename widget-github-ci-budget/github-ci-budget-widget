@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+# Render the dollars remaining in a monthly GitHub Actions budget.
+#
+#   github-ci-budget-widget --budget 20
+#   github-ci-budget-widget --demo
+#   github-ci-budget-widget --dump
+
+set -uo pipefail
+
+TARGET="${GCB_TARGET:-github-ci-budget}"
+BUDGET="${GCB_BUDGET:-}"
+INCLUDED="${GCB_INCLUDED:-0}"
+REPOSITORY="${GCB_REPOSITORY:-}"
+ORG="${GCB_ORG:-}"
+ACCOUNT="${GCB_ACCOUNT:-}"
+FONT="${GCB_FONT:-Menlo}"
+FONT_SIZE="${GCB_FONT_SIZE:-16}"
+BACKGROUND="${GCB_BACKGROUND:-#211638}"
+FOREGROUND="${GCB_FOREGROUND:-#F4ECFF}"
+CACHE="${GCB_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/github-ci-budget-widget/state}"
+MAX_AGE="${GCB_MAX_AGE:-900}"
+API_VERSION="${GCB_API_VERSION:-2026-03-10}"
+MAC_RATE="${GCB_MAC_RATE:-0.062}"
+MAC_MINS_PER_RUN="${GCB_MAC_MINS_PER_RUN:-16}"
+DEMO=0
+DUMP=0
+FORCE=0
+
+C_MINT='#6FF0C4'
+C_AMBER='#FFCB6B'
+C_CORAL='#FF6984'
+C_PINK='#F480FF'
+C_DIM='#AF99C9'
+
+usage() {
+  sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+
+Options:
+  --budget USD     Monthly Actions budget (or $GCB_BUDGET)
+  --included USD   Included Actions allowance value (or $GCB_INCLUDED)
+  --repository NAME  Repository whose paid budget is monitored
+  --org NAME       Read billing for an organization (or $GCB_ORG)
+  --account NAME   Personal GitHub login; auto-detected by default
+  --target NAME    Terminal Widget target (default: github-ci-budget)
+  --force          Ignore cached billing data
+  --dump           Print the raw GitHub response and calculated spend
+  --demo            Render canned values without GitHub access
+  -h, --help        This help
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --budget)  BUDGET="${2:?--budget needs a dollar amount}"; shift 2 ;;
+    --included) INCLUDED="${2:?--included needs a dollar amount}"; shift 2 ;;
+    --repository) REPOSITORY="${2:?--repository needs a name}"; shift 2 ;;
+    --org)     ORG="${2:?--org needs a name}"; shift 2 ;;
+    --account) ACCOUNT="${2:?--account needs a name}"; shift 2 ;;
+    --target)  TARGET="${2:?--target needs a name}"; shift 2 ;;
+    --force)   FORCE=1; shift ;;
+    --dump)    DUMP=1; FORCE=1; shift ;;
+    --demo)    DEMO=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) printf 'unknown argument: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+for dep in gh jq terminal-widget; do
+  command -v "$dep" >/dev/null 2>&1 || { printf 'missing dependency: %s\n' "$dep" >&2; exit 1; }
+done
+
+valid_money() { printf '%s' "$1" | grep -qE '^[0-9]+([.][0-9]{1,2})?$'; }
+
+push() {
+  terminal-widget --target "$TARGET" \
+    --title 'GITHUB ACTIONS' --title-alignment left \
+    --text "$1" --icon 'desktopcomputer' --fit-text \
+    --caption-text "$2" \
+    --font "$FONT" --font-size "$FONT_SIZE" \
+    --theme dark --background "$BACKGROUND" \
+    --foreground "$3" --text-color "$3" \
+    --title-color "$C_PINK" --caption-color "$C_DIM" \
+    --background-mode >/dev/null 2>&1
+}
+
+push_error() {
+  terminal-widget --target "$TARGET" \
+    --title 'GITHUB ACTIONS' --title-alignment left \
+    --text "$1" --icon 'exclamationmark.triangle.fill' --fit-text \
+    --font "$FONT" --font-size "$FONT_SIZE" \
+    --theme dark --background "$BACKGROUND" \
+    --foreground "$C_CORAL" --text-color "$C_CORAL" \
+    --title-color "$C_PINK" --background-mode >/dev/null 2>&1
+}
+
+colour_for() {
+  if awk -v p="$1" 'BEGIN { exit !(p > 50) }'; then printf '%s' "$C_MINT"
+  elif awk -v p="$1" 'BEGIN { exit !(p > 20) }'; then printf '%s' "$C_AMBER"
+  else printf '%s' "$C_CORAL"
+  fi
+}
+
+DISPLAY_TEXT=''
+DISPLAY_CAPTION=''
+DISPLAY_COLOUR=''
+prepare_render() {
+  local spent="$1" budget="$2" left pct reset mac_minutes runs
+  left=$(awk -v b="$budget" -v s="$spent" 'BEGIN { x=b-s; if (x<0) x=0; printf "%.2f", x }')
+  pct=$(awk -v b="$budget" -v l="$left" 'BEGIN { if (b<=0) print 0; else printf "%.1f", 100*l/b }')
+  reset=$(date -v1d -v+1m '+%b 1' 2>/dev/null || date -d 'next month' '+%b 1' 2>/dev/null || printf 'next month')
+  mac_minutes=$(awk -v d="$left" -v r="$MAC_RATE" 'BEGIN { if (r<=0) print 0; else printf "%.0f", d/r }')
+  runs=$(awk -v m="$mac_minutes" -v r="$MAC_MINS_PER_RUN" 'BEGIN { if (r<=0) print 0; else printf "%.0f", m/r }')
+  DISPLAY_TEXT="$mac_minutes"
+  DISPLAY_CAPTION=$(printf '~%s RUNS · RESET %s' "$runs" "$reset" | tr '[:lower:]' '[:upper:]')
+  DISPLAY_COLOUR=$(colour_for "$pct")
+}
+
+cache_stamp() {
+  [ -f "$CACHE" ] && head -1 "$CACHE" 2>/dev/null | tr -cd '0-9' || printf '0'
+}
+
+read_cache() { [ -f "$CACHE" ] && sed -n '2p' "$CACHE"; }
+
+write_cache() {
+  local dir tmp
+  dir=$(dirname "$CACHE")
+  mkdir -p "$dir" 2>/dev/null || return 1
+  tmp="$CACHE.$$"
+  { date +%s; printf '%s\n' "$1"; } >"$tmp" || return 1
+  mv -f "$tmp" "$CACHE"
+}
+
+BODY=''
+fetch_usage() {
+  local year month endpoint
+  year=$(date +%Y); month=$(date +%-m)
+  if [ -n "$ORG" ]; then
+    endpoint="organizations/$ORG/settings/billing/usage?year=$year&month=$month&product=actions"
+  else
+    if [ -z "$ACCOUNT" ]; then
+      ACCOUNT=$(gh api user --jq .login 2>/dev/null) || return 3
+    fi
+    endpoint="users/$ACCOUNT/settings/billing/usage?year=$year&month=$month&product=actions"
+  fi
+  BODY=$(gh api -H "X-GitHub-Api-Version: $API_VERSION" "$endpoint" 2>/dev/null) || return 4
+}
+
+spent_from() {
+  local body owner repo discount net private total=0
+  body=$(cat)
+  owner="${ORG:-$ACCOUNT}"
+
+  # The billing report includes free public-repository activity in
+  # discountAmount. Only private repositories draw down the plan's included
+  # Actions allowance, so check each repository before adding its usage.
+  while IFS=$'\t' read -r repo discount net; do
+    [ -n "$repo" ] || continue
+    private=$(gh api "repos/$owner/$repo" --jq .private 2>/dev/null) || return 1
+    [ "$private" = "true" ] || continue
+    total=$(awk -v a="$total" -v b="$discount" 'BEGIN { printf "%.6f", a+b }')
+    if [ -z "$REPOSITORY" ] || [ "$repo" = "$REPOSITORY" ]; then
+      total=$(awk -v a="$total" -v b="$net" 'BEGIN { printf "%.6f", a+b }')
+    fi
+  done < <(printf '%s' "$body" | jq -r '
+    [.usageItems[]?
+      | select(.unitType == "Minutes" and .repositoryName != null)]
+    | group_by(.repositoryName)
+    | .[]
+    | [.[0].repositoryName,
+       (map(.discountAmount // 0) | add // 0),
+       (map(.netAmount // 0) | add // 0)]
+    | @tsv' 2>/dev/null)
+
+  printf '%.2f\n' "$total"
+}
+
+if [ "$DEMO" -eq 1 ]; then
+  prepare_render 2.58 10
+  printf '%s\n%s\n' "$DISPLAY_TEXT" "$DISPLAY_CAPTION"
+  if ! push "$DISPLAY_TEXT" "$DISPLAY_CAPTION" "$DISPLAY_COLOUR"; then
+    printf 'could not update Terminal Widget target %s; create it first\n' "$TARGET" >&2
+    exit 6
+  fi
+  printf 'pushed demo to widget %s\n' "$TARGET" >&2
+  exit 0
+fi
+
+if ! valid_money "$BUDGET" || ! valid_money "$INCLUDED" \
+   || awk -v b="$BUDGET" -v i="$INCLUDED" 'BEGIN { exit !(b+i <= 0) }'; then
+  push_error 'SET A BUDGET'
+  printf 'set --budget USD or GCB_BUDGET to a positive dollar amount\n' >&2
+  exit 2
+fi
+
+TOTAL_BUDGET=$(awk -v b="$BUDGET" -v i="$INCLUDED" 'BEGIN { printf "%.2f", b+i }')
+
+now=$(date +%s)
+stamp=$(cache_stamp)
+age=$((now - stamp))
+spent=''
+
+if [ "$FORCE" -eq 0 ] && [ "$stamp" -gt 0 ] && [ "$age" -lt "$MAX_AGE" ]; then
+  spent=$(read_cache)
+else
+  if fetch_usage; then
+    spent=$(printf '%s' "$BODY" | spent_from)
+    if ! valid_money "$spent"; then
+      push_error 'BAD API DATA'
+      exit 5
+    fi
+    write_cache "$spent"
+  else
+    rc=$?
+    spent=$(read_cache)
+    if [ -z "$spent" ]; then
+      push_error 'GITHUB OFFLINE'
+      printf 'GitHub billing lookup failed; check gh auth and billing permissions\n' >&2
+      exit "$rc"
+    fi
+    printf 'GitHub lookup failed; showing cached billing data\n' >&2
+  fi
+fi
+
+if [ "$DUMP" -eq 1 ]; then
+  printf '%s\n' "$BODY" | jq .
+  printf 'Actions allowance used: $%s of $%s\n' "$spent" "$TOTAL_BUDGET" >&2
+  exit 0
+fi
+
+prepare_render "$spent" "$TOTAL_BUDGET"
+push "$DISPLAY_TEXT" "$DISPLAY_CAPTION" "$DISPLAY_COLOUR"
