@@ -88,6 +88,7 @@ if type brew >/dev/null 2>&1; then
 fi
 if [ "$(uname)" = "Darwin" ]; then
     alias ls="ls -FG"
+    alias lsusb="ioreg -p IOUSB -w0 | sed -En 's/^([ |]*)\+-o (.*[^ ])  *<.*/\1+- \2/p'"
 else
     alias ls="ls -F -N --color"
 fi
