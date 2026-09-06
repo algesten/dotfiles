@@ -5,9 +5,8 @@ budget, for [Terminal Widget](https://terminalwidget.app/).
 
 The widget uses Terminal Widget's native scalable text, caption, and
 `desktopcomputer` SF Symbol modes—there is no ASCII or box-drawing art. The
-large main value is the estimated number of remaining macOS runner minutes,
-with an approximate number of `podocle` runs and the reset date in the native
-caption.
+large main value is the approximate number of remaining `podocle` runs, with
+the estimated macOS runner minutes and reset date in the native caption.
 
 The balance is mint above 50%, amber below 50%, and coral below 20%. The widget
 uses the semantic Terminal Widget target `github-ci-budget`, rather than a

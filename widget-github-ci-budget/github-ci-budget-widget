@@ -111,8 +111,8 @@ prepare_render() {
   reset=$(date -v1d -v+1m '+%b 1' 2>/dev/null || date -d 'next month' '+%b 1' 2>/dev/null || printf 'next month')
   mac_minutes=$(awk -v d="$left" -v r="$MAC_RATE" 'BEGIN { if (r<=0) print 0; else printf "%.0f", d/r }')
   runs=$(awk -v m="$mac_minutes" -v r="$MAC_MINS_PER_RUN" 'BEGIN { if (r<=0) print 0; else printf "%.0f", m/r }')
-  DISPLAY_TEXT="$mac_minutes"
-  DISPLAY_CAPTION=$(printf '~%s RUNS · RESET %s' "$runs" "$reset" | tr '[:lower:]' '[:upper:]')
+  DISPLAY_TEXT="$runs"
+  DISPLAY_CAPTION=$(printf '%s MAC MIN · RESET %s' "$mac_minutes" "$reset" | tr '[:lower:]' '[:upper:]')
   DISPLAY_COLOUR=$(colour_for "$pct")
 }
 
