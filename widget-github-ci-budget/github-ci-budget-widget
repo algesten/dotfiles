@@ -9,6 +9,7 @@ set -uo pipefail
 
 TARGET="${GCB_TARGET:-github-ci-budget}"
 BUDGET="${GCB_BUDGET:-}"
+ACCOUNT_BUDGET="${GCB_ACCOUNT_BUDGET:-0}"
 INCLUDED="${GCB_INCLUDED:-0}"
 REPOSITORY="${GCB_REPOSITORY:-}"
 ORG="${GCB_ORG:-}"
@@ -17,7 +18,7 @@ FONT="${GCB_FONT:-Menlo}"
 FONT_SIZE="${GCB_FONT_SIZE:-16}"
 BACKGROUND="${GCB_BACKGROUND:-#2E174A}"
 FOREGROUND="${GCB_FOREGROUND:-#F4ECFF}"
-CACHE="${GCB_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/github-ci-budget-widget/state}"
+CACHE="${GCB_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/github-ci-budget-widget/state-v2}"
 MAX_AGE="${GCB_MAX_AGE:-900}"
 API_VERSION="${GCB_API_VERSION:-2026-03-10}"
 MAC_RATE="${GCB_MAC_RATE:-0.062}"
@@ -147,9 +148,12 @@ fetch_usage() {
 }
 
 spent_from() {
-  local body owner repo discount net private total=0
+  local body owner repo discount net private total=0 account_net repo_net
   body=$(cat)
   owner="${ORG:-$ACCOUNT}"
+  printf '%s' "$body" | jq -e '.usageItems | type == "array"' >/dev/null || return 1
+  account_net=$(printf '%s' "$body" | jq '[.usageItems[] | select((.product // "" | ascii_downcase) == "actions") | .netAmount] | add // 0') || return 1
+  repo_net=$(printf '%s' "$body" | jq --arg repo "$REPOSITORY" '[.usageItems[] | select((.product // "" | ascii_downcase) == "actions") | select($repo == "" or .repositoryName == $repo) | .netAmount] | add // 0') || return 1
 
   # The billing report includes free public-repository activity in
   # discountAmount. Only private repositories draw down the plan's included
@@ -159,11 +163,9 @@ spent_from() {
     private=$(gh api "repos/$owner/$repo" --jq .private 2>/dev/null) || return 1
     [ "$private" = "true" ] || continue
     total=$(awk -v a="$total" -v b="$discount" 'BEGIN { printf "%.6f", a+b }')
-    if [ -z "$REPOSITORY" ] || [ "$repo" = "$REPOSITORY" ]; then
-      total=$(awk -v a="$total" -v b="$net" 'BEGIN { printf "%.6f", a+b }')
-    fi
   done < <(printf '%s' "$body" | jq -r '
     [.usageItems[]?
+      | select((.product // "" | ascii_downcase) == "actions")
       | select(.unitType == "Minutes" and .repositoryName != null)]
     | group_by(.repositoryName)
     | .[]
@@ -172,7 +174,17 @@ spent_from() {
        (map(.netAmount // 0) | add // 0)]
     | @tsv' 2>/dev/null)
 
-  printf '%.2f\n' "$total"
+  # Convert the two independent caps into effective consumed headroom.
+  awk -v used="$total" -v included="$INCLUDED" -v rb="$BUDGET" \
+      -v ab="$ACCOUNT_BUDGET" -v rn="$repo_net" -v an="$account_net" '
+    BEGIN {
+      free=included-used; if (free<0) free=0;
+      ar=ab-an; if (ar<0) ar=0;
+      rr=rb-rn; if (rr<0) rr=0;
+      paid=(ar<rr ? ar : rr);
+      cap=(ab<rb ? ab : rb);
+      printf "%.2f\n", included+cap-free-paid;
+    }'
 }
 
 if [ "$DEMO" -eq 1 ]; then
@@ -186,14 +198,14 @@ if [ "$DEMO" -eq 1 ]; then
   exit 0
 fi
 
-if ! valid_money "$BUDGET" || ! valid_money "$INCLUDED" \
+if ! valid_money "$BUDGET" || ! valid_money "$INCLUDED" || ! valid_money "$ACCOUNT_BUDGET" \
    || awk -v b="$BUDGET" -v i="$INCLUDED" 'BEGIN { exit !(b+i <= 0) }'; then
   push_error 'SET A BUDGET'
   printf 'set --budget USD or GCB_BUDGET to a positive dollar amount\n' >&2
   exit 2
 fi
 
-TOTAL_BUDGET=$(awk -v b="$BUDGET" -v i="$INCLUDED" 'BEGIN { printf "%.2f", b+i }')
+TOTAL_BUDGET=$(awk -v b="$BUDGET" -v a="$ACCOUNT_BUDGET" -v i="$INCLUDED" 'BEGIN { printf "%.2f", (a<b ? a : b)+i }')
 
 now=$(date +%s)
 stamp=$(cache_stamp)

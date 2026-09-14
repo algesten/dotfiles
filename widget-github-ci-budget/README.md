@@ -13,8 +13,11 @@ uses the semantic Terminal Widget target `github-ci-budget`, rather than a
 positional name such as `widget3`.
 
 For the configured `algesten` account, available headroom combines the `$18.00`
-value of GitHub Pro's 3,000 included minutes with the `$20.00` repository-level
-Actions budget for `podocle`. The widget subtracts private-repository
+value of GitHub Pro's 3,000 included minutes with the smaller remaining balance
+of the account and repository Actions budgets (both configured as `$50.00`).
+Set `GCB_ACCOUNT_BUDGET` explicitly; it defaults to zero. Budgets are local
+configuration and must be updated when the GitHub settings change.
+The widget subtracts private-repository
 `discountAmount` from the included allowance and `podocle`'s `netAmount` from
 its paid budget. Public repository activity appears in billing reports but does
 not draw down the included allowance, so repository visibility is checked
@@ -32,7 +35,7 @@ gh auth login -h github.com
 ln -s ~/dev/dotfiles/widget-github-ci-budget/github-ci-budget-widget \
   ~/bin/github-ci-budget-widget
 github-ci-budget-widget --demo
-github-ci-budget-widget --budget 10 --force
+GCB_ACCOUNT_BUDGET=50 github-ci-budget-widget --budget 50 --included 18 --repository podocle --force
 ```
 
 Add a medium Terminal Widget and set its target to `github-ci-budget`.
@@ -45,6 +48,8 @@ the plist's `EnvironmentVariables` dictionary:
 
 ```xml
 <key>GCB_BUDGET</key>
+<string>10</string>
+<key>GCB_ACCOUNT_BUDGET</key>
 <string>10</string>
 <key>GCB_ORG</key>
 <string>my-organization</string>
@@ -65,7 +70,7 @@ deducted before the widget calculates `budget - spend`.
 
 ## Configuration
 
-Environment variables use the `GCB_` prefix: `GCB_BUDGET`, `GCB_ORG`,
+Environment variables use the `GCB_` prefix: `GCB_BUDGET`, `GCB_ACCOUNT_BUDGET`, `GCB_ORG`,
 `GCB_INCLUDED`, `GCB_REPOSITORY`, `GCB_ACCOUNT`, `GCB_TARGET`, `GCB_FONT`, `GCB_FONT_SIZE`, `GCB_BACKGROUND`,
 `GCB_FOREGROUND`, `GCB_CACHE`, `GCB_MAX_AGE`, `GCB_API_VERSION`, `GCB_MAC_RATE`,
 and `GCB_MAC_MINS_PER_RUN`. The defaults are `$0.062` per macOS minute and 16

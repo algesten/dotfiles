@@ -150,9 +150,9 @@ fi
 
 export MACOS_SIGNING_KEY="Developer ID Application: Taglab Consulting S.L. (JUB99UJD56)"
 
-alias cxlow="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"low\"'"
-alias cxmid="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"medium\"'"
-alias cxmax="codex -m gpt-5.6-sol -c 'model_reasoning_effort=\"max\"'"
+alias cxlow="codex -m gpt-6-astra -c 'model_reasoning_effort=\"low\"'"
+alias cxmid="codex -m gpt-6-astra -c 'model_reasoning_effort=\"medium\"'"
+alias cxmax="codex -m gpt-6-astra -c 'model_reasoning_effort=\"max\"'"
 
 nix() {
   env -u DYLD_LIBRARY_PATH -u DYLD_FALLBACK_LIBRARY_PATH \

@@ -9,7 +9,9 @@
 		<key>GCB_ACCOUNT</key>
 		<string>algesten</string>
 		<key>GCB_BUDGET</key>
-		<string>20.00</string>
+		<string>50.00</string>
+		<key>GCB_ACCOUNT_BUDGET</key>
+		<string>50.00</string>
 		<key>GCB_INCLUDED</key>
 		<string>18.00</string>
 		<key>GCB_REPOSITORY</key>
