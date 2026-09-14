@@ -1,7 +1,7 @@
 #!/bin/bash
 
-dev="$HOME/dev"
-dotfiles="$dev/dotfiles"
+dotfiles="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$dotfiles" || exit 1
 
 if [[ -d "$dotfiles" ]]; then
   echo "Symlinking dotfiles from $dotfiles"

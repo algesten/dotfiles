@@ -1,0 +1,19 @@
+# Shared preferences. Machine paths, project trust and runtime state stay local.
+approvals_reviewer = "auto_review"
+personality = "pragmatic"
+service_tier = "fast"
+model = "gpt-5.6-luna"
+model_reasoning_effort = "medium"
+
+[tui]
+status_line = ["model-with-reasoning", "current-dir", "five-hour-limit", "weekly-limit", "context-window-size", "context-used"]
+status_line_use_colors = true
+auto_recap = false
+show_tooltips = false
+
+[features]
+js_repl = false
+multi_agent = true
+
+[agents]
+max_threads = 10

@@ -1,1 +1,6 @@
 .DS_Store
+/claude.d/*
+/codex.d/*
+/agents/claude-config.json
+/agents/codex-config.toml
+/agents/*.last-installed.*
