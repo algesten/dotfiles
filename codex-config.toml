@@ -16,4 +16,4 @@ js_repl = false
 multi_agent = true
 
 [agents]
-max_threads = 10
+max_concurrent_threads_per_session = 10
