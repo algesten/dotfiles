@@ -56,9 +56,15 @@ class AgentConfigsTest(unittest.TestCase):
         text = target.read_text()
         target.unlink()
         target.write_text(text + '\n[app_state]\nchanged = true\n')
-        with self.assertRaisesRegex(ValueError, "changed since installation"):
-            self.install()
-        self.assertIn("app_state", configs.read(target))
+        self.install()
+        self.assertTrue(target.is_symlink())
+        self.assertNotIn("app_state", configs.read(target))
+        self.assertTrue(configs.read(target)["tui"]["show_tooltips"])
+        # Edits through the symlink, even invalid TOML, are also overwritten.
+        target.write_text('broken = [')
+        self.install()
+        self.assertEqual(configs.read(target)["model"], "local-model")
+        self.assertTrue(configs.read(target)["tui"]["show_tooltips"])
 
     def test_invalid_fragment_does_not_touch_destinations(self):
         fragments = self.root / "codex.d"

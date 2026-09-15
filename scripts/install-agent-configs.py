@@ -110,15 +110,8 @@ def install(home, repo=REPO):
         snapshot = root / (name + ".last-installed" + suffix)
         base = read(repo / source)
         migration = None
-        if snapshot.exists():
-            # Applications may replace symlinks or write through them. Never discard edits.
-            if target.exists() and read(target) != read(snapshot):
-                raise ValueError(
-                    f"{target} changed since installation. Move those changes into "
-                    f"{fragments}/90-local{suffix}, then restore {target} from {snapshot} "
-                    "and rerun."
-                )
-        elif target.exists():
+        # After migration, shared defaults and fragments replace any live edits.
+        if not snapshot.exists() and target.exists():
             backup = target.with_name(target.name + ".pre-dotfiles")
             if backup.exists() or backup.is_symlink():
                 raise ValueError(f"Backup already exists; preserve or move it first: {backup}")

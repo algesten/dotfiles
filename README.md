@@ -41,10 +41,9 @@ Machine-specific paths and runtime state stay out of git unless you explicitly
 choose to track their fragments.
 
 Edit the shared files or local fragments, rather than the generated files.
-If an app edits its settings (or replaces the symlink), the installer stops
-instead of discarding those changes. It prints the fragment and last-installed
-snapshot paths: transfer the changes into a fragment, restore the target's
-contents from the snapshot, and rerun. Close the apps while installing.
+Running `./update-agents.sh` overwrites changes to the live settings with the
+shared files and local fragments, and restores any symlinks replaced by apps.
+To keep a setting across updates, put it in a shared file or local fragment.
 
 Neither tool documents a general user-level `include`/`conf.d` facility.
 [Claude](https://code.claude.com/docs/en/settings) supports project
