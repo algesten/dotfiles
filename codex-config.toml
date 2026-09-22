@@ -1,3 +1,8 @@
+developer_instructions = """
+  Never use request_user_input_async instead ask in ordinary chat.
+"""
+
+
 # Shared preferences. Machine paths, project trust and runtime state stay local.
 approvals_reviewer = "auto_review"
 personality = "pragmatic"
