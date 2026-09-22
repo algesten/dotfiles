@@ -14,7 +14,7 @@ Fable   58%    Mon 08:24
 ██████████████░░░░░░░░░░
 ```
 
-Bars show **remaining**, coloured green (>50%) → amber (>20%) → red, with the
+Bars show **remaining**, coloured green (≥15%) → amber (5–<15%) → red (<5%), with the
 window reset time dimmed on the right.
 
 The panel is pinned to a dark theme — warm `#3A2A22` on `#F2E9E4`, sharing the

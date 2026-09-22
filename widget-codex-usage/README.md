@@ -10,8 +10,8 @@ Spark   38%        Thu 13:33
 █████████░░░░░░░░░░░░░░░
 ```
 
-Bars show **remaining** allowance, coloured green (>50%) → amber (>20%) →
-red, with the reset time dimmed on the right. The default “Graphite Night”
+Bars show **remaining** allowance, coloured green (≥15%) → amber (5–<15%) →
+red (<5%), with the reset time dimmed on the right. The default “Graphite Night”
 theme uses a quiet charcoal background with soft, desaturated status colours.
 
 ## Install

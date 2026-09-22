@@ -221,8 +221,8 @@ adjust_rows() {
 
 # ── rendering ────────────────────────────────────────────────────────────
 colour_for() {
-  if   [ "$1" -gt 50 ]; then printf '%s' "$C_GREEN"
-  elif [ "$1" -gt 20 ]; then printf '%s' "$C_AMBER"
+  if   [ "$1" -ge 15 ]; then printf '%s' "$C_GREEN"
+  elif [ "$1" -ge 5 ]; then printf '%s' "$C_AMBER"
   else                       printf '%s' "$C_RED"
   fi
 }
