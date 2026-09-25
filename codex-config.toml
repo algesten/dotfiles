@@ -11,6 +11,8 @@ model = "gpt-5.6-luna"
 model_reasoning_effort = "medium"
 
 [tui]
+alternate_screen = "never"
+# raw_output_mode = true
 status_line = ["model-with-reasoning", "current-dir", "five-hour-limit", "weekly-limit", "context-window-size", "context-used"]
 status_line_use_colors = false
 auto_recap = false
