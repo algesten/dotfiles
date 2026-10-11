@@ -84,6 +84,35 @@ class AgentConfigsTest(unittest.TestCase):
         self.assertEqual(permissions["allow"], ["last"])
         self.assertEqual(permissions["defaultMode"], "auto")
 
+    def test_links_skills_to_both_agents_without_replacing_existing_entries(self):
+        skills = self.root / "skills"
+        for name in ("amail", "review-cycle"):
+            skill = skills / name
+            skill.mkdir(parents=True)
+            (skill / "SKILL.md").write_text(f"# {name}\n")
+        (skills / "not-a-skill").mkdir()
+        existing = self.home / ".claude/skills/amail"
+        existing.mkdir(parents=True)
+        (existing / "note").write_text("keep")
+
+        self.install()
+        with contextlib.redirect_stdout(io.StringIO()) as output:
+            configs.install(self.home, self.root)
+        self.assertIn(
+            f"Linked {self.home / '.codex/skills/amail'} -> {skills / 'amail'}",
+            output.getvalue(),
+        )
+
+        self.assertEqual((existing / "note").read_text(), "keep")
+        self.assertEqual(
+            (self.home / ".codex/skills/amail").resolve(), (skills / "amail").resolve()
+        )
+        for agent in ("claude", "codex"):
+            target = self.home / f".{agent}/skills/review-cycle"
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(target.resolve(), (skills / "review-cycle").resolve())
+            self.assertFalse((self.home / f".{agent}/skills/not-a-skill").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,6 +30,10 @@ symlinked into place:
 - `~/.claude/settings.json` → `agents/claude-config.json`
 - `~/.codex/config.toml` → `agents/codex-config.toml`
 
+`./update-agents.sh` also links each directory in `skills/` containing a
+`SKILL.md` into both `~/.claude/skills/` and `~/.codex/skills/`. Existing
+entries with the same name are kept and reported, rather than overwritten.
+
 These merged files and their last-installed snapshots in `agents/` are
 gitignored. On first installation, existing files
 are backed up beside the originals with a `.pre-dotfiles` suffix, and values

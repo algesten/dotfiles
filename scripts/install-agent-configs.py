@@ -96,6 +96,26 @@ def write(path, text):
             os.unlink(temporary)
 
 
+def link_skills(home, repo):
+    source = repo / "skills"
+    if not source.is_dir():
+        return
+    for skill in sorted(source.iterdir()):
+        if not skill.is_dir() or not (skill / "SKILL.md").is_file():
+            continue
+        for agent in ("claude", "codex"):
+            target = home / f".{agent}" / "skills" / skill.name
+            if target.is_symlink() and target.resolve() == skill.resolve():
+                print(f"Linked {target} -> {skill}")
+                continue
+            if target.exists() or target.is_symlink():
+                print(f"Keeping existing {target}; cannot link {skill}", file=sys.stderr)
+                continue
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.symlink_to(skill, target_is_directory=True)
+            print(f"Linked {target} -> {skill}")
+
+
 def install(home, repo=REPO):
     root = repo / "agents"
     plans = []
@@ -144,6 +164,7 @@ def install(home, repo=REPO):
             target.unlink()
         target.symlink_to(generated)
         print(f"Linked {target} -> {generated}; local fragments: {fragments}")
+    link_skills(home, repo)
 
 
 if __name__ == "__main__":
