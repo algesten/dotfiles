@@ -2,7 +2,7 @@
 
 Originally stolen from paulmillr.
 
-Manage Claude and Codex settings with `./agents.sh`; no arguments or environment
+Manage Claude and Codex settings with `./update-agents.sh`; no arguments or environment
 variables are needed. It automatically finds Python 3.11+ on PATH or in the
 standard Homebrew locations. The script works from any directory.
 `./install.sh` manages the other dotfiles separately.
@@ -21,7 +21,7 @@ The installer recursively merges shared defaults, then fragments in filename
 order. Later values win; arrays are replaced as a whole (including permission
 lists). For example, put `{"effortLevel": "high"}` in
 `claude.d/90-local.json`, or `model_reasoning_effort = "high"` in
-`codex.d/90-local.toml`. Rerun `./agents.sh` after changing shared
+`codex.d/90-local.toml`. Rerun `./update-agents.sh` after changing shared
 files or fragments; this is an installer feature, not a live include mechanism.
 
 Like the other dotfiles, the active files live in this repository and are

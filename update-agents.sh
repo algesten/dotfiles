@@ -9,5 +9,5 @@ for python in python3 /opt/homebrew/bin/python3 /usr/local/bin/python3 python3.{
   fi
 done
 
-echo "Agent config installation requires Python 3.11+. Install it, then rerun ./agents.sh." >&2
+echo "Agent config installation requires Python 3.11+. Install it, then rerun ./update-agents.sh." >&2
 exit 1

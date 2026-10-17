@@ -11,7 +11,7 @@ import tempfile
 try:
     import tomllib
 except ImportError:
-    sys.exit("Agent config installation requires Python 3.11+. Run ./agents.sh to detect it automatically.")
+    sys.exit("Agent config installation requires Python 3.11+. Run ./update-agents.sh to detect it automatically.")
 
 REPO = Path(__file__).resolve().parent.parent
 
