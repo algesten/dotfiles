@@ -29,6 +29,14 @@ symlinked into place:
 
 - `~/.claude/settings.json` → `agents/claude-config.json`
 - `~/.codex/config.toml` → `agents/codex-config.toml`
+- `~/.codex/AGENTS.md` → `AGENTS.md`
+
+`AGENTS.md` provides global Codex instructions for naming sessions when reviewing
+pull requests and keeping session names in sync after PR title or description
+changes. The updater preserves an existing global instructions file or symlink
+as `~/.codex/AGENTS.md.pre-dotfiles` before installing the link. Repeated updates
+keep the managed link; a conflicting existing backup stops installation without
+overwriting either file. Start a new Codex session to load the instructions.
 
 `./update-agents.sh` also links each directory in `skills/` containing a
 `SKILL.md` into both `~/.claude/skills/` and `~/.codex/skills/`. Existing

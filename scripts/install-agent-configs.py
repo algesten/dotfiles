@@ -96,6 +96,26 @@ def write(path, text):
             os.unlink(temporary)
 
 
+def link_codex_instructions(home, repo):
+    source = repo / "AGENTS.md"
+    target = home / ".codex/AGENTS.md"
+    if not source.is_file():
+        raise ValueError(f"Missing global Codex instructions: {source}")
+    if target.is_symlink() and target.resolve() == source.resolve():
+        print(f"Linked {target} -> {source}")
+        return
+    if target.exists() or target.is_symlink():
+        backup = target.with_name(target.name + ".pre-dotfiles")
+        if backup.exists() or backup.is_symlink():
+            raise ValueError(f"Backup already exists; preserve or move it first: {backup}")
+        if target.is_dir():
+            raise ValueError(f"Expected an instructions file, found a directory: {target}")
+        target.rename(backup)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.symlink_to(source)
+    print(f"Linked {target} -> {source}")
+
+
 def link_skills(home, repo):
     source = repo / "skills"
     if not source.is_dir():
@@ -146,7 +166,8 @@ def install(home, repo=REPO):
             merged = merge(merged, read(fragment))
         plans.append((target, fragments, generated, snapshot, migration, serialize(merged, suffix)))
 
-    # Validate both configurations before changing either destination.
+    # Validate both configurations before changing any destination.
+    link_codex_instructions(home, repo)
     for target, fragments, generated, snapshot, migration, text in plans:
         fragments.mkdir(parents=True, exist_ok=True)
         if not snapshot.exists() and target.exists():

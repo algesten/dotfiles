@@ -21,7 +21,7 @@ class AgentConfigsTest(unittest.TestCase):
         self.home = Path(self.temp.name)
         self.root = self.home / "dev/dotfiles"
         self.root.mkdir(parents=True)
-        for source in ("claude-settings.json", "codex-config.toml"):
+        for source in ("claude-settings.json", "codex-config.toml", "AGENTS.md"):
             shutil.copy2(configs.REPO / source, self.root / source)
 
     def install(self):
@@ -73,6 +73,37 @@ class AgentConfigsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.install()
         self.assertFalse((self.home / ".claude/settings.json").exists())
+        self.assertFalse((self.home / ".codex/AGENTS.md").exists())
+
+    def test_installs_global_instructions_and_preserves_existing_file(self):
+        target = self.home / ".codex/AGENTS.md"
+        target.parent.mkdir()
+        original = "# Existing instructions\nKeep my preferences.\n"
+        target.write_text(original)
+
+        self.install()
+        backup = target.with_name("AGENTS.md.pre-dotfiles")
+        self.assertTrue(target.is_symlink())
+        self.assertEqual(target.resolve(), (self.root / "AGENTS.md").resolve())
+        self.assertEqual(backup.read_text(), original)
+
+        self.install()
+        self.assertEqual(backup.read_text(), original)
+        self.assertTrue(target.is_symlink())
+
+    def test_instruction_backup_conflict_does_not_touch_destinations(self):
+        target = self.home / ".codex/AGENTS.md"
+        target.parent.mkdir()
+        target.write_text("Current preferences\n")
+        backup = target.with_name("AGENTS.md.pre-dotfiles")
+        backup.write_text("Original preferences\n")
+
+        with self.assertRaisesRegex(ValueError, "Backup already exists"):
+            self.install()
+        self.assertEqual(target.read_text(), "Current preferences\n")
+        self.assertEqual(backup.read_text(), "Original preferences\n")
+        self.assertFalse((self.home / ".claude/settings.json").exists())
+        self.assertFalse((self.root / "agents").exists())
 
     def test_fragment_order_and_array_replacement(self):
         self.install()
