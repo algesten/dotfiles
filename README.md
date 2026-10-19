@@ -52,10 +52,18 @@ fragments: imported values override future shared defaults until removed.
 Machine-specific paths and runtime state stay out of git unless you explicitly
 choose to track their fragments.
 
-Edit the shared files or local fragments, rather than the generated files.
-Running `./update-agents.sh` overwrites changes to the live settings with the
+Codex MCP servers are preserved from the live `~/.codex/config.toml` on every
+update, so you can keep using `codex mcp add` and `codex mcp remove`. The live
+`[mcp_servers]` section takes precedence over shared defaults and fragments,
+including imported settings. Removing a server, or the entire section, stays
+removed on later updates. Shared and fragment MCP definitions are used when no
+live Codex config exists. If the live file is invalid, the updater stops before
+changing either configuration so it cannot discard MCP settings it cannot read.
+
+For other settings, edit the shared files or local fragments. Running
+`./update-agents.sh` overwrites other changes to the live settings with the
 shared files and local fragments, and restores any symlinks replaced by apps.
-To keep a setting across updates, put it in a shared file or local fragment.
+To keep a non-MCP setting across updates, put it in a shared file or local fragment.
 
 Neither tool documents a general user-level `include`/`conf.d` facility.
 [Claude](https://code.claude.com/docs/en/settings) supports project

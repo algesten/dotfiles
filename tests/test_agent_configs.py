@@ -60,11 +60,85 @@ class AgentConfigsTest(unittest.TestCase):
         self.assertTrue(target.is_symlink())
         self.assertNotIn("app_state", configs.read(target))
         self.assertTrue(configs.read(target)["tui"]["show_tooltips"])
-        # Edits through the symlink, even invalid TOML, are also overwritten.
-        target.write_text('broken = [')
+
+    def test_codex_mcp_additions_survive_repeated_updates(self):
         self.install()
-        self.assertEqual(configs.read(target)["model"], "local-model")
-        self.assertTrue(configs.read(target)["tui"]["show_tooltips"])
+        target = self.home / ".codex/config.toml"
+        servers = {
+            "local-server": {
+                "command": "npx",
+                "args": ["-y", "example-mcp"],
+                "env": {"EXAMPLE_TOKEN": "private-test-token"},
+            },
+            "remote-server": {
+                "url": "https://example.com/mcp",
+                "bearer_token_env_var": "REMOTE_TOKEN",
+                "enabled_tools": ["search", "fetch"],
+            },
+        }
+        current = configs.read(target)
+        current["mcp_servers"] = servers
+        current["model"] = "temporary-live-edit"
+        target.write_text(configs.serialize(current, ".toml"))
+        (self.root / "codex.d/90-local.toml").write_text('model = "new-shared-model"\n')
+
+        for _ in range(2):
+            self.install()
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(configs.read(target)["mcp_servers"], servers)
+            self.assertEqual(configs.read(target)["model"], "new-shared-model")
+
+    def test_codex_mcp_edits_and_removals_override_imported_and_shared_settings(self):
+        target = self.home / ".codex/config.toml"
+        target.parent.mkdir()
+        original = {
+            "mcp_servers": {
+                "changed": {"command": "old-command", "env": {"OLD_TOKEN": "old-value"}},
+                "removed": {"url": "https://removed.example.com/mcp"},
+            },
+        }
+        target.write_text(configs.serialize(original, ".toml"))
+        self.install()
+        self.assertEqual(configs.read(self.root / "codex.d/00-imported.toml"), original)
+        # Both shared defaults and fragments must yield to the live MCP section.
+        with (self.root / "codex-config.toml").open("a") as stream:
+            stream.write('\n[mcp_servers.removed]\nurl = "https://removed.example.com/mcp"\n')
+        (self.root / "codex.d/90-local.toml").write_text(configs.serialize(original, ".toml"))
+        current = configs.read(target)
+        current["mcp_servers"] = {"changed": {"url": "https://changed.example.com/mcp"}}
+        # Simulate the CLI atomically replacing the managed symlink.
+        configs.write(target, configs.serialize(current, ".toml"))
+        self.assertFalse(target.is_symlink())
+
+        for _ in range(2):
+            self.install()
+            self.assertTrue(target.is_symlink())
+            self.assertEqual(configs.read(target)["mcp_servers"], current["mcp_servers"])
+
+        # Removing the final server may remove the entire section.
+        del current["mcp_servers"]
+        target.write_text(configs.serialize(current, ".toml"))
+        for _ in range(2):
+            self.install()
+            self.assertNotIn("mcp_servers", configs.read(target))
+
+    def test_invalid_live_codex_config_does_not_touch_destinations(self):
+        self.install()
+        target = self.home / ".codex/config.toml"
+        target.write_text('broken = [')
+        snapshot = self.root / "agents/codex.last-installed.toml"
+        original_snapshot = snapshot.read_text()
+        claude_target = self.home / ".claude/settings.json"
+        original_claude = claude_target.read_text()
+        # Claude's pending changes must not be installed before Codex is validated.
+        (self.root / "claude.d/90-local.json").write_text('{"effortLevel": "high"}\n')
+
+        with self.assertRaisesRegex(ValueError, "Cannot preserve MCP settings from"):
+            self.install()
+        self.assertTrue(target.is_symlink())
+        self.assertEqual(target.read_text(), 'broken = [')
+        self.assertEqual(snapshot.read_text(), original_snapshot)
+        self.assertEqual(claude_target.read_text(), original_claude)
 
     def test_invalid_fragment_does_not_touch_destinations(self):
         fragments = self.root / "codex.d"

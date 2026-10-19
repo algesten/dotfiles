@@ -150,7 +150,13 @@ def install(home, repo=REPO):
         snapshot = root / (name + ".last-installed" + suffix)
         base = read(repo / source)
         migration = None
-        # After migration, shared defaults and fragments replace any live edits.
+        current_codex = None
+        if name == "codex" and target.exists():
+            try:
+                current_codex = read(target)
+            except ValueError as error:
+                raise ValueError(f"Cannot preserve MCP settings from {target}: {error}") from error
+        # After migration, shared defaults and fragments replace non-MCP live edits.
         if not snapshot.exists() and target.exists():
             backup = target.with_name(target.name + ".pre-dotfiles")
             if backup.exists() or backup.is_symlink():
@@ -164,6 +170,12 @@ def install(home, repo=REPO):
         merged = merge(base, migration or {})
         for fragment in sorted(fragments.glob("*" + suffix)):
             merged = merge(merged, read(fragment))
+        if current_codex is not None:
+            # Preserve CLI additions, edits and removals, including the last server.
+            # Replace the whole section so stale fragment values cannot reappear.
+            merged.pop("mcp_servers", None)
+            if "mcp_servers" in current_codex:
+                merged["mcp_servers"] = current_codex["mcp_servers"]
         plans.append((target, fragments, generated, snapshot, migration, serialize(merged, suffix)))
 
     # Validate both configurations before changing any destination.
