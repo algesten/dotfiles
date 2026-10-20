@@ -143,6 +143,8 @@ For takeover PRs, your commits may be additional tweaks on top of someone else's
 
 ### 3. Iterate
 
+Before adding or revising a changelog entry during iteration, read the target changelog and match its existing style and entry length as described in step 7b.
+
 Commit → verify locally → push. Pushing does not start CI:
 
 ```sh
@@ -202,11 +204,12 @@ Before merging, inspect every commit in `origin/main..HEAD` and collect its `Co-
 
 ### 7b. Audit `CHANGELOG.md` when present
 
-If `<main-folder>/CHANGELOG.md` exists, ensure the PR includes an appropriate changelog line before merge. Read nearby existing entries and follow the repo's format to the letter:
+If `<main-folder>/CHANGELOG.md` exists, ensure the PR includes an appropriate changelog line before merge. Before drafting or revising an entry, read the target section and several recent entries in that changelog. Use them as the style and length reference, and check the final entry against them during this audit:
 
 - Preserve section placement, bullet style, prefixes, wrapping, and line length.
+- Match the typical word count, sentence count, tone, and level of detail. If nearby entries are short one-liners, write a similarly short one-liner. Omit implementation details unless that changelog routinely includes them.
 - Incorporate the PR number exactly the way surrounding entries do; don't invent a new `#<pr#>` or `PR <pr#>` style if the file uses another convention.
-- The entry must describe the user-visible change from the whole PR, not merely your additional tweaks on a takeover PR.
+- Concisely summarize the user-visible change from the whole PR, including the original changes on a takeover PR.
 - If the PR is not user-visible and the changelog has a clear convention for skipping such entries, follow that convention; otherwise ask before omitting it.
 
 Commit and push any changelog correction; a changelog-only head needs no new CI request beyond the local guard checks, unless the project's CI asserts changelog contents.
