@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Merge shared agent settings with private fragments and install symlinks."""
+import argparse
 import datetime
 import json
 import os
@@ -201,7 +202,13 @@ def install(home, repo=REPO):
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "destination", nargs="?", type=Path, default=Path.home(),
+        help="directory to install .codex and .claude into (default: your home directory)",
+    )
+    args = parser.parse_args()
     try:
-        install(Path.home())
+        install(args.destination.expanduser().resolve())
     except (ValueError, OSError) as error:
         sys.exit(str(error))

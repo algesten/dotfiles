@@ -7,6 +7,18 @@ variables are needed. It automatically finds Python 3.11+ on PATH or in the
 standard Homebrew locations. The script works from any directory.
 `./install.sh` manages the other dotfiles separately.
 
+To install into another directory, pass it as the optional argument:
+
+```sh
+./update-agents.sh ~/wurk
+CODEX_HOME=~/wurk/.codex codex
+```
+
+This creates `~/wurk/.codex` and `~/wurk/.claude`, with the same configuration,
+instructions, and skill symlinks as the default installation. Generated configs
+and local fragments remain shared in this repository; credentials and session
+state belong to the selected agent home.
+
 Shared defaults live in `claude-settings.json` and `codex-config.toml`. Local
 additions live in this repository:
 
