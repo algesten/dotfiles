@@ -22,7 +22,7 @@ Bare `amail index` resumes an interrupted build, indexes newly found mail and ne
 
 ## Prepare an unsent draft
 
-Create drafts when the user's request calls for composing mail. For a reply, find and read the intended source message first, then pass its reference or search-result JSON to `--reply-all`. This invokes Mail's native reply-all action and retains the thread headers; Mail chooses the recipients, sender, reply subject, and quoted content. Omitted fields preserve those choices. Follow the user's intended audience: for a sender-only reply, replace To and explicitly clear any unintended Cc/Bcc recipients.
+Create drafts when the user's request calls for composing mail. For a reply, find and read the intended source message first, then pass its reference or search-result JSON to `--reply-all`. This invokes Mail's native reply-all action and retains the thread headers; Mail chooses the recipients, sender, and reply subject. Omitted fields preserve those choices. Follow the user's intended audience: for a sender-only reply, replace To and explicitly clear any unintended Cc/Bcc recipients.
 
 ```sh
 amail draft --to alice@example.com --subject 'Meeting notes' --body-file ./notes.txt --show
@@ -30,7 +30,7 @@ amail draft --reply-all '{"account_id":"ACCOUNT_ID","mailbox":["INBOX"],"id":123
   --body-file ./reply.txt --show
 ```
 
-Supply reply text in that initial creation call. `--body` or `--body-file` replaces the generated body, including quoted text and signatures; omit the body to preserve it. Mail has acknowledged later scripted body amendments on reply compose objects without persisting them to the saved reply. Make later reply-body edits manually in Mail, and do not claim they were saved merely because the command reported `amended: true` or the compose object's content changed.
+Supply only the new reply text through `--body` or `--body-file` in that initial creation call. amail places it above a blank line, sender attribution, and the complete previous email body quoted with `> ` on every line. The original is always quoted, including when no new text is supplied, independently of Mail's quoting preferences. Do not append the original yourself. The quote is plain text; original rich formatting and inline attachments are not reproduced. The combined new text and quote must fit the 16 MiB body limit; failures reading or validating the quote stop before draft creation. Mail has acknowledged later scripted body amendments on reply compose objects without persisting them to the saved reply. Make later reply-body edits manually in Mail, and do not claim they were saved merely because the command reported `amended: true` or the compose object's content changed.
 
 Repeat `--to`, `--cc`, and `--bcc` for multiple addresses. On a reply or amendment, a supplied recipient group replaces that entire group; omit it to preserve recipients, or use `--clear-to`, `--clear-cc`, or `--clear-bcc` to empty it. Bodies are plain text; files/stdin must be UTF-8 and at most 16 MiB. `--reply-all -` reads the source JSON from stdin; it cannot share stdin with `--body-file -`. Reply creation cannot be combined with `--draft-id` or `--message-id`. Adding attachments is unsupported.
 
