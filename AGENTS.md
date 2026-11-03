@@ -7,3 +7,9 @@
 - Use `thread/name/set` with `CODEX_THREAD_ID`, preferably through the running
   app server (`codex app-server proxy`). A separate app-server process updates
   the saved name but may leave the terminal title stale until resume.
+
+# Function order
+
+Order functions depth-first by first mention, starting with the entry point.
+When adding functions to existing code, place them among the existing functions
+according to the same order.
