@@ -13,3 +13,8 @@
 Order functions depth-first by first mention, starting with the entry point.
 When adding functions to existing code, place them among the existing functions
 according to the same order.
+
+# Monitoring shorthand
+
+When the user writes `m` by itself, monitor the active subagents until their work
+converges.
